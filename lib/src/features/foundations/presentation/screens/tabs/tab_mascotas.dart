@@ -7,6 +7,7 @@ import 'package:flutter_app_pet_adopt/src/features/pets/presentation/screens/pet
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_bloc.dart';
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_event.dart';
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_state.dart';
+import 'package:flutter_app_pet_adopt/src/features/pets/presentation/screens/create_pet/pet_creation_wizard.dart';
 
 class TabMascotas extends StatefulWidget {
   const TabMascotas({super.key});

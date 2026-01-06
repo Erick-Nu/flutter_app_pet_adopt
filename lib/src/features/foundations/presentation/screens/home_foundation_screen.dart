@@ -5,7 +5,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../pets/presentation/bloc/pet_bloc.dart';
 import '../../../pets/presentation/bloc/pet_event.dart';
-import '../../../pets/presentation/screens/pet_form_screen.dart';
+import '../../../pets/presentation/screens/create_pet/pet_creation_wizard.dart';
 import 'tabs/tab_inicio.dart';
 import 'tabs/tab_mascotas.dart';
 
@@ -141,7 +141,7 @@ class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
                         MaterialPageRoute(
                           builder: (_) => BlocProvider.value(
                             value: petBloc,
-                            child: const PetFormScreen(),
+                            child: const PetCreationWizard(),
                           ),
                         ),
                       );

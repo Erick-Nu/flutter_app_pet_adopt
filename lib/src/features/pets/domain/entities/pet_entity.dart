@@ -11,6 +11,8 @@ class PetEntity {
   final String? avatarUrl;
   final String fundacionId;
   final String? tamano;
+  // URLs públicas de la galería de imágenes asociadas
+  final List<String> galleryUrls;
   
   // --- CAMPOS TRANSITORIOS (Para el formulario) ---
   final File? newAvatarFile; // Archivo físico para subir
@@ -27,6 +29,7 @@ class PetEntity {
     this.avatarUrl,
     required this.fundacionId,
     this.tamano,
+    this.galleryUrls = const [],
     this.newAvatarFile,
     this.newGalleryFiles,
     this.fichaMedica,

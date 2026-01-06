@@ -11,9 +11,27 @@ class PetModel extends PetEntity {
     super.avatarUrl,
     required super.fundacionId,
     super.tamano = 'Mediano',
+    super.galleryUrls = const [],
   });
 
   factory PetModel.fromJson(Map<String, dynamic> json) {
+    // Extraer URLs de la relación 'mascota_imagenes'
+    List<String> loadedGallery = [];
+    final rel = json['mascota_imagenes'];
+    if (rel != null && rel is List) {
+      loadedGallery = rel
+          .whereType<Map<String, dynamic>>()
+          .map((item) => item['imagen_url'])
+          .whereType<String>()
+          .toList();
+    }
+
+    // Si no hay galería, usar el avatar como fallback
+    final avatar = json['avatar_url'] as String?;
+    if (loadedGallery.isEmpty && avatar != null && avatar.isNotEmpty) {
+      loadedGallery.add(avatar);
+    }
+
     return PetModel(
       id: json['id'],
       nombre: json['nombre'],
@@ -21,9 +39,10 @@ class PetModel extends PetEntity {
       edad: json['edad'],
       sexo: json['sexo'] ?? 'macho',
       status: json['status'] ?? 'disponible',
-      avatarUrl: json['avatar_url'],
+      avatarUrl: avatar,
       fundacionId: json['fundacion_id'],
       tamano: json['tamano'] ?? 'Mediano',
+      galleryUrls: loadedGallery,
     );
   }
 
