@@ -33,16 +33,32 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<UserModel> login(String email, String password) async {
-    final response = await supabaseClient.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      final response = await supabaseClient.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
-    if (response.user == null) {
-      throw Exception('Login falló: El usuario es nulo');
+      if (response.user == null) {
+        throw Exception('Error: No se pudo obtener el usuario.');
+      }
+
+      return UserModel.fromSupabase(response.user!);
+      
+    } on AuthException catch (e) {
+      // --- VALIDACIÓN DE CREDENCIALES ---
+      if (e.message.contains('Invalid login credentials')) {
+        throw Exception('Correo o contraseña incorrectos.');
+      } else if (e.message.contains('Email not confirmed')) {
+        throw Exception('Debes confirmar tu correo electrónico.');
+      } else {
+        // Cualquier otro error de Supabase (ej. red, bloqueo, etc.)
+        throw Exception(e.message); 
+      }
+    } catch (e) {
+      // Errores no controlados
+      throw Exception('Ocurrió un error inesperado al iniciar sesión.');
     }
-
-    return UserModel.fromSupabase(response.user!);
   }
 
   @override
@@ -53,32 +69,41 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String cedula,
     String? telefono,
   }) async {
-    // 1. Crear usuario en Auth de Supabase
-    // Guardamos 'type': 'adoptante' en la metadata para identificarlo fácil luego
-    final authResponse = await supabaseClient.auth.signUp(
-      email: email,
-      password: password,
-      data: {'type': 'adoptante'}, 
-    );
+    try {
+      // 1. Crear usuario en Auth de Supabase
+      final authResponse = await supabaseClient.auth.signUp(
+        email: email,
+        password: password,
+        data: {'type': 'adoptante'}, 
+      );
 
-    if (authResponse.user == null) {
-      throw Exception('Registro falló: No se pudo crear el usuario Auth');
+      if (authResponse.user == null) {
+        throw Exception('Registro falló: No se pudo crear el usuario Auth');
+      }
+
+      final userId = authResponse.user!.id;
+
+      // 2. Insertar datos en la tabla pública 'adoptantes'
+      await supabaseClient.from('adoptantes').insert({
+        'id': userId,
+        'nombre': nombre,
+        'cedula': cedula,
+        'telefono': telefono,
+        'sexo': 'hombre', 
+        // 'avatar_url': ... 
+      });
+
+      return UserModel.fromSupabase(authResponse.user!);
+
+    } on AuthException catch (e) {
+      // Manejo de errores de registro (ej. usuario ya existe)
+      if (e.message.contains('User already registered')) {
+        throw Exception('Este correo ya está registrado.');
+      }
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('Error al registrar adoptante: $e');
     }
-
-    final userId = authResponse.user!.id;
-
-    // 2. Insertar datos en la tabla pública 'adoptantes'
-    // Usamos el mismo ID que nos dio Auth
-    await supabaseClient.from('adoptantes').insert({
-      'id': userId,
-      'nombre': nombre,
-      'cedula': cedula,
-      'telefono': telefono,
-      'sexo': 'hombre', // Valor por defecto o pedirlo en el form
-      // 'avatar_url': ... (se puede actualizar después)
-    });
-
-    return UserModel.fromSupabase(authResponse.user!);
   }
 
   @override
@@ -89,46 +114,70 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String direccion,
     String? telefono,
   }) async {
-    // 1. Crear usuario Auth
-    final authResponse = await supabaseClient.auth.signUp(
-      email: email,
-      password: password,
-      data: {'type': 'fundacion'},
-    );
+    try {
+      // 1. Crear usuario Auth
+      final authResponse = await supabaseClient.auth.signUp(
+        email: email,
+        password: password,
+        data: {'type': 'fundacion'},
+      );
 
-    if (authResponse.user == null) {
-      throw Exception('Registro falló');
+      if (authResponse.user == null) {
+        throw Exception('Registro falló');
+      }
+
+      final userId = authResponse.user!.id;
+
+      // 2. Insertar en tabla pública 'fundaciones'
+      await supabaseClient.from('fundaciones').insert({
+        'id': userId,
+        'nombre': nombre,
+        'direccion': direccion,
+        'telefono': telefono,
+        'descripcion': 'Fundación nueva',
+      });
+
+      return UserModel.fromSupabase(authResponse.user!);
+
+    } on AuthException catch (e) {
+      if (e.message.contains('User already registered')) {
+        throw Exception('Este correo ya está registrado.');
+      }
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('Error al registrar fundación: $e');
     }
-
-    final userId = authResponse.user!.id;
-
-    // 2. Insertar en tabla pública 'fundaciones'
-    await supabaseClient.from('fundaciones').insert({
-      'id': userId,
-      'nombre': nombre,
-      'direccion': direccion,
-      'telefono': telefono,
-      'descripcion': 'Fundación nueva', // Valor inicial
-    });
-
-    return UserModel.fromSupabase(authResponse.user!);
   }
 
   @override
   Future<void> logout() async {
-    await supabaseClient.auth.signOut();
+    try {
+      await supabaseClient.auth.signOut();
+    } catch (e) {
+      throw Exception('Error al cerrar sesión');
+    }
   }
 
   @override
   Future<void> recoverPassword(String email) async {
-    await supabaseClient.auth.resetPasswordForEmail(email);
+    try {
+      await supabaseClient.auth.resetPasswordForEmail(email);
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('Error al enviar correo de recuperación');
+    }
   }
 
   @override
   Future<UserModel?> getCurrentUser() async {
-    final user = supabaseClient.auth.currentUser;
-    if (user == null) return null;
-    return UserModel.fromSupabase(user);
+    try {
+      final user = supabaseClient.auth.currentUser;
+      if (user == null) return null;
+      return UserModel.fromSupabase(user);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

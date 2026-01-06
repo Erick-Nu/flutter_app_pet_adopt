@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_bloc.dart';
 
-class RegisterAdoptanteScreen extends StatefulWidget {
-  const RegisterAdoptanteScreen({super.key});
+class RegisterFundacionScreen extends StatefulWidget {
+  const RegisterFundacionScreen({super.key});
 
   @override
-  State<RegisterAdoptanteScreen> createState() => _RegisterAdoptanteScreenState();
+  State<RegisterFundacionScreen> createState() => _RegisterFundacionScreenState();
 }
 
-class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
+class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controladores
-  final _nombreCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _cedulaCtrl = TextEditingController();
+  // Controladores específicos para Fundación
+  final _nombreCtrl = TextEditingController(); // Nombre de la fundación
+  final _direccionCtrl = TextEditingController(); // Dirección física
   final _telefonoCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   
   bool _isPassVisible = false;
@@ -24,9 +24,9 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
   @override
   void dispose() {
     _nombreCtrl.dispose();
-    _emailCtrl.dispose();
-    _cedulaCtrl.dispose();
+    _direccionCtrl.dispose();
     _telefonoCtrl.dispose();
+    _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
   }
@@ -35,12 +35,13 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
     if (_formKey.currentState!.validate()) {
       FocusScope.of(context).unfocus();
 
+      // Disparamos el evento específico de Fundación
       context.read<AuthBloc>().add(
-        AuthRegisterAdoptanteRequested(
+        AuthRegisterFundacionRequested(
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text.trim(),
           nombre: _nombreCtrl.text.trim(),
-          cedula: _cedulaCtrl.text.trim(),
+          direccion: _direccionCtrl.text.trim(),
           telefono: _telefonoCtrl.text.trim(),
         ),
       );
@@ -57,6 +58,7 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
     String? Function(String?)? validator,
     TextCapitalization capitalization = TextCapitalization.none,
     TextInputAction action = TextInputAction.next,
+    int maxLines = 1,
   }) {
     final theme = Theme.of(context);
     
@@ -68,6 +70,7 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
         obscureText: obscureText,
         textCapitalization: capitalization,
         textInputAction: action,
+        maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon),
@@ -99,7 +102,6 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      // AppBar eliminada para quitar el botón de regreso
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
@@ -114,7 +116,7 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
             Navigator.of(context).popUntil((route) => route.isFirst);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text("¡Cuenta creada con éxito! Bienvenido."),
+                content: const Text("¡Fundación registrada! Bienvenido."),
                 backgroundColor: Colors.green.shade600,
                 behavior: SnackBarBehavior.floating,
               ),
@@ -131,12 +133,14 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // --- ENCABEZADO ---
                     const SizedBox(height: 20),
-                    Icon(Icons.person_add_rounded, size: 64, color: colorScheme.primary),
+                    
+                    // --- ENCABEZADO DIFERENTE PARA FUNDACIÓN ---
+                    // Usamos un ícono que represente refugio/casa
+                    Icon(Icons.pets_rounded, size: 64, color: Colors.blueAccent), 
                     const SizedBox(height: 16),
                     Text(
-                      "Registro Adoptante",
+                      "Registro Fundación",
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
@@ -145,7 +149,7 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Completa tus datos para encontrar a tu compañero ideal.",
+                      "Únete para gestionar adopciones y ayudar a más mascotas.",
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: Colors.grey.shade600,
@@ -155,30 +159,34 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
 
                     // --- CAMPOS DE TEXTO ---
                     
+                    // Nombre de la Fundación
                     _buildTextField(
                       controller: _nombreCtrl,
-                      label: 'Nombre Completo',
-                      icon: Icons.person_outline,
+                      label: 'Nombre de la Fundación',
+                      icon: Icons.domain_rounded,
                       capitalization: TextCapitalization.words,
                       validator: (v) => (v == null || v.isEmpty) ? 'El nombre es requerido' : null,
                     ),
 
+                    // Dirección (Campo importante para fundaciones)
                     _buildTextField(
-                      controller: _cedulaCtrl,
-                      label: 'Cédula / ID',
-                      icon: Icons.badge_outlined,
-                      type: TextInputType.number,
-                      validator: (v) => (v == null || v.length < 10) ? 'Cédula inválida' : null,
+                      controller: _direccionCtrl,
+                      label: 'Dirección Física',
+                      icon: Icons.location_on_outlined,
+                      capitalization: TextCapitalization.sentences,
+                      validator: (v) => (v == null || v.isEmpty) ? 'La dirección es requerida' : null,
                     ),
 
+                    // Teléfono de Contacto
                     _buildTextField(
                       controller: _telefonoCtrl,
-                      label: 'Celular',
-                      icon: Icons.phone_android_outlined,
+                      label: 'Teléfono de Contacto',
+                      icon: Icons.phone_rounded,
                       type: TextInputType.phone,
                       validator: (v) => (v == null || v.isEmpty) ? 'El teléfono es requerido' : null,
                     ),
 
+                    // Email
                     _buildTextField(
                       controller: _emailCtrl,
                       label: 'Correo Electrónico',
@@ -187,6 +195,7 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
                       validator: (v) => (v == null || !v.contains('@')) ? 'Correo inválido' : null,
                     ),
 
+                    // Password
                     _buildTextField(
                       controller: _passCtrl,
                       label: 'Contraseña',
@@ -237,7 +246,7 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
                               ),
                             ),
                             child: const Text(
-                              "Crear Cuenta",
+                              "Registrar Fundación",
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           );
