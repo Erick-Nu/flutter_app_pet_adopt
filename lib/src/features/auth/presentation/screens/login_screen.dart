@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_bloc.dart';
 import 'register_selector_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -173,7 +174,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () {
-                          // Acción recuperar contraseña
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                          );
                         },
                         child: Text(
                           '¿Olvidaste tu contraseña?',

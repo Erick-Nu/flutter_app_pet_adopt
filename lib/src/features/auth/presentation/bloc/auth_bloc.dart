@@ -6,6 +6,7 @@ import '../../domain/usecases/register_adoptante_usecase.dart';
 import '../../domain/usecases/register_fundacion_usecase.dart';
 import '../../domain/usecases/recover_password_usecase.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../../../core/services/logger_service.dart';
 
 part 'auth_event.dart';
 part 'auth_state.dart';
@@ -71,15 +72,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
 
     // 4. Recuperar Contraseña
-    on<AuthRecoverPasswordRequested>((event, emit) async {
-      emit(AuthLoading());
-      try {
-        await recoverPasswordUseCase(event.email);
-        emit(AuthRecoveryEmailSent());
-      } catch (e) {
-        emit(AuthError(e.toString()));
-      }
-    });
+    on<AuthRecoverPasswordRequested>(_onRecoverPassword);
 
     // 5. Verificar Sesión al inicio
     on<AuthCheckStatus>((event, emit) async {
@@ -100,5 +93,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await authRepository.logout();
       emit(AuthUnauthenticated());
     });
+  }
+
+  // ==================== MÉTODOS DE MANEJO DE EVENTOS ====================
+
+  /// 4. Recuperar Contraseña
+  Future<void> _onRecoverPassword(
+    AuthRecoverPasswordRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    LoggerService.section('RECUPERAR CONTRASEÑA - BLoC');
+    emit(AuthLoading());
+    try {
+      LoggerService.auth('Ejecutando RecoverPasswordUseCase', data: {'email': event.email});
+      await recoverPasswordUseCase(event.email);
+      LoggerService.success('Correo de recuperación enviado', context: 'AuthBloc');
+      emit(const AuthRecoverySuccess("Correo de recuperación enviado. Revisa tu bandeja."));
+    } catch (e, stackTrace) {
+      LoggerService.error('Error en recuperación de contraseña BLoC', context: 'AuthBloc', error: e, stackTrace: stackTrace);
+      emit(AuthError(e.toString()));
+    }
   }
 }

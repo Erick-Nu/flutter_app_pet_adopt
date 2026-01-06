@@ -1,18 +1,48 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'logger_service.dart';
 
 class SupabaseService {
-  // NOTA: Más adelante moveremos esto a un archivo .env para mayor seguridad,
-  // pero por ahora está bien tenerlo aquí encapsulado.
-  static const String _url = 'https://sskhkgzlsjmveqtojvay.supabase.co';
-  static const String _anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNza2hrZ3psc2ptdmVxdG9qdmF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NDQwMzYsImV4cCI6MjA4MzIyMDAzNn0.nJZ_ulIwBE-S8QQsl0nQ5lpSODB1JaW9dqfeGPERJ1o';
-
-  /// Inicializa la conexión con Supabase
+  /// Inicializa la conexión con Supabase usando variables de entorno
   static Future<void> initialize() async {
-    await Supabase.initialize(
-      url: _url,
-      anonKey: _anonKey,
-      // Aquí puedes agregar config extra como debug: true, authFlowType, etc.
-    );
+    try {
+      LoggerService.section('INICIALIZACIÓN DE SUPABASE');
+      
+      // Obtener las credenciales desde .env
+      LoggerService.info('Cargando credenciales desde .env', context: 'Supabase');
+      final supabaseUrl = dotenv.env['SUPABASE_URL'];
+      final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+      if (supabaseUrl == null || supabaseAnonKey == null) {
+        LoggerService.error(
+          'Variables de entorno faltantes',
+          context: 'Supabase',
+          error: 'SUPABASE_URL o SUPABASE_ANON_KEY no definidas',
+        );
+        throw Exception(
+          'Las variables SUPABASE_URL y SUPABASE_ANON_KEY deben estar definidas en el archivo .env'
+        );
+      }
+
+      LoggerService.info('Credenciales cargadas correctamente', context: 'Supabase');
+      LoggerService.info('URL: ${supabaseUrl.substring(0, 20)}...', context: 'Supabase');
+
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+      );
+
+      LoggerService.success('Conexión a Supabase establecida', context: 'Supabase');
+      LoggerService.separator();
+    } catch (e, stackTrace) {
+      LoggerService.error(
+        'Fallo al inicializar Supabase',
+        context: 'Supabase',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   /// Getter para obtener el cliente sin llamar a Supabase.instance.client en todas partes

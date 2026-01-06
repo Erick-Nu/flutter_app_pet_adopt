@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import '/src/core/widgets/role_option_card.dart'; // Importa el widget que acabamos de crear
-import 'register_adoptante_screen.dart';
-import 'register_fundacion_screen.dart';
+// CORRECCIÓN 1: Usamos la ruta relativa correcta (subimos 4 niveles hasta llegar a src)
+// O mejor aún, usamos la ruta del paquete que es más segura:
+import 'package:flutter_app_pet_adopt/src/core/widgets/role_option_card.dart';
 
+import 'register_adoptante_screen.dart';
+import 'register_fundacion_screen.dart'; // CORRECCIÓN 2: Ya podemos usar esta pantalla
 
 class RegisterSelectorScreen extends StatelessWidget {
   const RegisterSelectorScreen({super.key});
@@ -14,7 +16,6 @@ class RegisterSelectorScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      // Usamos SafeArea para evitar conflictos con el notch/barra de estado
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -23,7 +24,6 @@ class RegisterSelectorScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // --- ENCABEZADO ---
                 const Icon(
                   Icons.app_registration_rounded,
                   size: 64,
@@ -51,14 +51,12 @@ class RegisterSelectorScreen extends StatelessWidget {
                 
                 const SizedBox(height: 48),
 
-                // --- OPCIONES DE REGISTRO ---
-                
-                // 1. ADOPTANTE
+                // OPCIÓN 1: ADOPTANTE
                 RoleOptionCard(
                   icon: Icons.person_outline_rounded,
                   title: "Soy Adoptante",
                   description: "Busco adoptar una mascota y darle un hogar lleno de amor.",
-                  color: colorScheme.primary, // Usa el Naranja de tu tema
+                  color: colorScheme.primary,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -69,26 +67,26 @@ class RegisterSelectorScreen extends StatelessWidget {
                   },
                 ),
 
-                // 2. FUNDACIÓN
+                // OPCIÓN 2: FUNDACIÓN
                 RoleOptionCard(
                   icon: Icons.pets_rounded,
                   title: "Soy Fundación",
                   description: "Gestiono refugios, rescato animales y promuevo la adopción.",
-                  color: Colors.blueAccent, // Color distintivo para fundaciones
+                  color: Colors.blueAccent,
                   onTap: () {
+                    // CORRECCIÓN 3: Navegación conectada correctamente
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => const RegisterFundacionScreen(),
-                      ) 
-                    );// <--- Conectado
+                      ),
+                    );
                   },
                 ),
 
                 const SizedBox(height: 32),
 
-                // --- FOOTER (SALIDA) ---
-                // UX: Siempre es bueno dar una salida si el usuario entró por error
+                // FOOTER
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -97,7 +95,7 @@ class RegisterSelectorScreen extends StatelessWidget {
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
                     GestureDetector(
-                      onTap: () => Navigator.pop(context), // Vuelve al Login
+                      onTap: () => Navigator.pop(context),
                       child: Text(
                         "Inicia Sesión",
                         style: TextStyle(

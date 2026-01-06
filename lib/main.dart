@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Imports de tu arquitectura
 import 'src/core/di/injection_container.dart' as di;
@@ -11,7 +12,10 @@ import 'src/features/auth/presentation/screens/welcome_screen.dart'; // Importam
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Inicializar Supabase y Dependencias
+  // 1. Cargar variables de entorno
+  await dotenv.load(fileName: ".env");
+
+  // 2. Inicializar Supabase y Dependencias
   await SupabaseService.initialize();
   await di.initDependencies();
 

@@ -28,3 +28,11 @@ class AuthError extends AuthState {
 
 // Estado especial para confirmar envío de correo (recuperar contraseña)
 class AuthRecoveryEmailSent extends AuthState {}
+
+class AuthRecoverySuccess extends AuthState {
+  final String message;
+  const AuthRecoverySuccess(this.message);
+
+  @override
+  List<Object> get props => [message];
+}

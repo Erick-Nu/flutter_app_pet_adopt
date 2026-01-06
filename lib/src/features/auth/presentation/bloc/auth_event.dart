@@ -44,10 +44,14 @@ class AuthRegisterFundacionRequested extends AuthEvent {
   });
 }
 
-class AuthRecoverPasswordRequested extends AuthEvent {
-  final String email;
-  const AuthRecoverPasswordRequested({required this.email});
-}
 
 class AuthCheckStatus extends AuthEvent {}
 class AuthLogoutRequested extends AuthEvent {}
+
+class AuthRecoverPasswordRequested extends AuthEvent {
+  final String email;
+  const AuthRecoverPasswordRequested(this.email);
+  
+  @override
+  List<Object> get props => [email];
+}
