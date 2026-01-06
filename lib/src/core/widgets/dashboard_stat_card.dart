@@ -52,7 +52,7 @@ class DashboardStatCard extends StatelessWidget {
                 count,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       fontSize: 28,
-                      color: AppTheme.textDark,
+                      color: AppTheme.textPrimary,
                     ),
               ),
               const SizedBox(height: 5),

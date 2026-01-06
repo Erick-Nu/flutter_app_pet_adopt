@@ -60,10 +60,10 @@ class TabInicio extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: AppTheme.primaryOrange, width: 2),
           ),
-          child: const CircleAvatar(
+          child: CircleAvatar(
             radius: 22,
-            backgroundColor: AppTheme.secondaryPeach,
-            child: Icon(Icons.pets, color: AppTheme.primaryOrange),
+            backgroundColor: AppTheme.primaryOrange.withOpacity(0.1),
+            child: const Icon(Icons.pets, color: AppTheme.primaryOrange),
           ),
         ),
       ],
