@@ -3,12 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
 import '../../bloc/pet_state.dart';
+import '../../../domain/entities/pet_entity.dart';
 import 'step_1_general_info.dart';
 import 'step_2_medical_info.dart';
 import 'step_3_gallery.dart';
 
 class PetCreationWizard extends StatefulWidget {
-  const PetCreationWizard({super.key});
+  final PetEntity? petToEdit;
+
+  const PetCreationWizard({super.key, this.petToEdit});
 
   @override
   State<PetCreationWizard> createState() => _PetCreationWizardState();
@@ -18,6 +21,37 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
   final PageController _pageController = PageController();
   int _currentStep = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    // SI ESTAMOS EDITANDO: Pre-llenar los datos en el BLoC
+    if (widget.petToEdit != null) {
+      final p = widget.petToEdit!;
+
+      // Cargar Paso 1 en memoria del BLoC
+      context.read<PetBloc>().add(PetCreateStep1Changed(
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        edad: p.edad,
+        sexo: p.sexo,
+        tamano: p.tamano ?? 'mediano',
+      ));
+
+      // Cargar Paso 2 en memoria del BLoC
+      if (p.fichaMedica != null) {
+        context.read<PetBloc>().add(PetCreateStep2Changed(
+          esEsterilizado: p.fichaMedica!.esEsterilizado,
+          esDesparasitado: p.fichaMedica!.esDesparasitado,
+          vacunasAlDia: p.fichaMedica!.tieneVacunas,
+          tieneMicrochip: p.fichaMedica!.tieneMicrochip,
+          peso: p.fichaMedica!.pesoKg,
+          tieneDiscapacidad: false,
+          observaciones: p.fichaMedica!.observaciones,
+        ));
+      }
+    }
+  }
+
   void _nextPage() {
     if (_currentStep < 2) {
       _pageController.nextPage(
@@ -26,8 +60,13 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
       );
       setState(() => _currentStep++);
     } else {
-      // Si es el último paso, enviamos el formulario
-      context.read<PetBloc>().add(PetSubmitCreation());
+      // ÚLTIMO PASO: DECIDIR SI CREAR O ACTUALIZAR
+      if (widget.petToEdit == null) {
+        context.read<PetBloc>().add(PetSubmitCreation());
+      } else {
+        // Enviamos evento de actualización con el ID
+        context.read<PetBloc>().add(PetSubmitUpdate(widget.petToEdit!.id));
+      }
     }
   }
 
@@ -45,6 +84,7 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.petToEdit != null;
     // 1. AÑADIMOS EL BLOC LISTENER AQUÍ
     return BlocListener<PetBloc, PetState>(
       listener: (context, state) {
@@ -52,10 +92,11 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
           // Opcional: Mostrar un diálogo de carga si prefieres bloquear la pantalla
           // showDialog(...) 
         } else if (state is PetsLoaded) {
-          // 2. ÉXITO: Si la lista se recargó, significa que se creó la mascota
+          // 2. ÉXITO: Si la lista se recargó, significa que se creó/actualizó la mascota
+          final message = isEditing ? '¡Mascota actualizada! 🎉' : '¡Mascota registrada exitosamente! 🐾';
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Mascota registrada exitosamente! 🐾'),
+            SnackBar(
+              content: Text(message),
               backgroundColor: Colors.green,
             ),
           );
@@ -73,7 +114,7 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Publicar Mascota"),
+          title: Text(isEditing ? "Editar Mascota" : "Publicar Mascota"),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: _prevPage,
@@ -105,9 +146,9 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
                     controller: _pageController,
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
-                      Step1GeneralInfo(onNext: _nextPage),
-                      Step2MedicalInfo(onNext: _nextPage),
-                      Step3Gallery(onSubmit: _nextPage),
+                      Step1GeneralInfo(onNext: _nextPage, petToEdit: widget.petToEdit),
+                      Step2MedicalInfo(onNext: _nextPage, petToEdit: widget.petToEdit),
+                      Step3Gallery(onSubmit: _nextPage, petToEdit: widget.petToEdit),
                     ],
                   );
                 },

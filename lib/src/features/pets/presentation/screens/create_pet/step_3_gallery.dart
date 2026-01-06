@@ -4,10 +4,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
+import '../../../domain/entities/pet_entity.dart';
 
 class Step3Gallery extends StatefulWidget {
   final VoidCallback onSubmit;
-  const Step3Gallery({super.key, required this.onSubmit});
+  final PetEntity? petToEdit;
+  
+  const Step3Gallery({super.key, required this.onSubmit, this.petToEdit});
 
   @override
   State<Step3Gallery> createState() => _Step3GalleryState();
@@ -16,6 +19,16 @@ class Step3Gallery extends StatefulWidget {
 class _Step3GalleryState extends State<Step3Gallery> {
   final ImagePicker _picker = ImagePicker();
   final List<String> _images = []; // Rutas locales
+  List<String> _existingGalleryUrls = []; // URLs de imágenes ya en internet
+
+  @override
+  void initState() {
+    super.initState();
+    // Si estamos editando, guardar las URLs existentes
+    if (widget.petToEdit != null) {
+      _existingGalleryUrls = List.from(widget.petToEdit!.galleryUrls);
+    }
+  }
 
   Future<void> _pickImage() async {
     final List<XFile> pickedFiles = await _picker.pickMultiImage();
@@ -33,43 +46,82 @@ class _Step3GalleryState extends State<Step3Gallery> {
   }
 
   void _finish() {
-    if (_images.isEmpty) {
+    // En modo edición, solo enviamos las nuevas imágenes (las existentes se mantienen en el servidor)
+    // En modo creación, podemos requerir al menos una
+    if (widget.petToEdit == null && _images.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Debes subir al menos una foto de portada")),
       );
       return;
     }
-    // Guardamos las imágenes y disparamos el evento final
+    // Guardamos las imágenes nuevas y disparamos el evento final
     context.read<PetBloc>().add(PetCreateImagesChanged(_images));
     widget.onSubmit(); // Esto llama al submit final en el Wizard
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const SizedBox(height: 24),
-        Text("Galería de Fotos", style: Theme.of(context).textTheme.headlineSmall),
-        const Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            "Sube fotos de alta calidad. La primera foto será la portada.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+    final hasExisting = _existingGalleryUrls.isNotEmpty;
+    
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+          Text("Galería de Fotos", style: Theme.of(context).textTheme.headlineSmall),
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              "Sube fotos de alta calidad. La primera foto será la portada.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
-        ),
+        
+        // Si estamos editando, mostrar imágenes existentes
+        if (hasExisting) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text("Imágenes actuales:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
+              itemCount: _existingGalleryUrls.length,
+              itemBuilder: (context, index) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(_existingGalleryUrls[index], fit: BoxFit.cover),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text("Agregar nuevas imágenes:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ),
+        ],
         
         // AREA DE BOTÓN DE CARGA
         GestureDetector(
           onTap: _pickImage,
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
+            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             height: 120,
             decoration: BoxDecoration(
               color: Colors.orange.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.orange, width: 1, style: BorderStyle.solid),
-              // Patrón de diseño "Dotted Border" simulado
             ),
             child: const Center(
               child: Column(
@@ -86,12 +138,17 @@ class _Step3GalleryState extends State<Step3Gallery> {
 
         const SizedBox(height: 24),
 
-        // GRILLA DE FOTOS
-        Expanded(
-          child: _images.isEmpty
-              ? Center(child: Text("No has seleccionado fotos aún", style: TextStyle(color: Colors.grey[400])))
-              : GridView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+        // GRILLA DE FOTOS NUEVAS
+        _images.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Text("No has seleccionado fotos aún", style: TextStyle(color: Colors.grey[400])),
+              )
+            : Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 10,
@@ -119,7 +176,7 @@ class _Step3GalleryState extends State<Step3Gallery> {
                             ),
                           ),
                         ),
-                        if (index == 0)
+                        if (index == 0 && !hasExisting)
                           Positioned(
                             bottom: 0,
                             left: 0,
@@ -137,7 +194,7 @@ class _Step3GalleryState extends State<Step3Gallery> {
                     );
                   },
                 ),
-        ),
+              ),
 
         Padding(
           padding: const EdgeInsets.all(24),
@@ -150,7 +207,8 @@ class _Step3GalleryState extends State<Step3Gallery> {
             ),
           ),
         )
-      ],
+        ],
+      ),
     );
   }
 }

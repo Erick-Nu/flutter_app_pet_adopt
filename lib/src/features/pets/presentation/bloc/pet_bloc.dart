@@ -32,12 +32,16 @@ class PetBloc extends Bloc<PetEvent, PetState> {
   }) : super(PetsInitial()) {
     
     on<LoadPets>((event, emit) async {
+      print('[PetBloc] LoadPets event recibido con fundacionId: ${event.fundacionId}');
       emit(PetsLoading());
       try {
         // Usamos el caso de uso
+        print('[PetBloc] Llamando a getPetsUseCase...');
         final pets = await getPetsUseCase(event.fundacionId);
+        print('[PetBloc] getPetsUseCase completado. Mascotas obtenidas: ${pets.length}');
         emit(PetsLoaded(pets));
       } catch (e) {
+        print('[PetBloc] ERROR en LoadPets: $e');
         emit(PetsError(e.toString()));
       }
     });
@@ -121,6 +125,7 @@ class PetBloc extends Bloc<PetEvent, PetState> {
                 esEsterilizado: _step2Data!.esEsterilizado,
                 esDesparasitado: _step2Data!.esDesparasitado,
                 tieneVacunas: _step2Data!.vacunasAlDia,
+                tieneMicrochip: _step2Data!.tieneMicrochip,
                 pesoKg: _step2Data!.peso ?? 0.0,
                 observaciones: _step2Data!.observaciones,
               )
@@ -157,6 +162,63 @@ class PetBloc extends Bloc<PetEvent, PetState> {
       } catch (e, stack) {
         log('[PetBloc] Error creando mascota: $e', stackTrace: stack);
         emit(PetsError('Error creando mascota: $e'));
+      }
+    });
+
+    // Handler para ACTUALIZAR
+    on<PetSubmitUpdate>((event, emit) async {
+      log('[PetBloc] Iniciando actualización de mascota ${event.petId}...');
+
+      emit(PetsLoading());
+
+      try {
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId == null) throw Exception("Usuario no autenticado");
+
+        // 1. Construir Ficha Médica
+        final medicalRecord = _step2Data != null
+            ? MedicalRecordEntity(
+                esEsterilizado: _step2Data!.esEsterilizado,
+                esDesparasitado: _step2Data!.esDesparasitado,
+                tieneVacunas: _step2Data!.vacunasAlDia,
+                tieneMicrochip: _step2Data!.tieneMicrochip,
+                pesoKg: _step2Data!.peso ?? 0.0,
+                observaciones: _step2Data!.observaciones,
+              )
+            : null;
+
+        // 2. Archivos Nuevos (Solo los que son rutas locales)
+        final newGalleryFiles = _step3Images.map((path) => File(path)).toList();
+
+        // 3. Entidad para Actualizar
+        final updatedPet = PetEntity(
+          id: event.petId, // ID IMPORTANTE
+          nombre: _step1Data?.nombre ?? '',
+          descripcion: _step1Data?.descripcion,
+          edad: _step1Data?.edad,
+          sexo: _step1Data?.sexo ?? 'macho',
+          tamano: _step1Data?.tamano,
+          status: 'disponible',
+          fundacionId: userId,
+          newAvatarFile: null,
+          newGalleryFiles: newGalleryFiles,
+          fichaMedica: medicalRecord,
+        );
+
+        // 4. Llamar al Caso de Uso UPDATE
+        await updatePetUseCase(updatedPet);
+
+        log('[PetBloc] Mascota actualizada. Recargando lista.');
+
+        // Limpiar temporales
+        _step1Data = null;
+        _step2Data = null;
+        _step3Images = [];
+
+        add(LoadPets(userId));
+      } catch (e, stack) {
+        log('[PetBloc] Error actualizando: $e', stackTrace: stack);
+        emit(PetsError("Error actualizando: $e"));
       }
     });
   }

@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
+import '../../../domain/entities/pet_entity.dart';
 
 class Step2MedicalInfo extends StatefulWidget {
   final VoidCallback onNext;
-  const Step2MedicalInfo({super.key, required this.onNext});
+  final PetEntity? petToEdit;
+  
+  const Step2MedicalInfo({super.key, required this.onNext, this.petToEdit});
 
   @override
   State<Step2MedicalInfo> createState() => _Step2MedicalInfoState();
@@ -22,6 +25,28 @@ class _Step2MedicalInfoState extends State<Step2MedicalInfo> {
   final _pesoCtrl = TextEditingController();
   final _descDiscapacidadCtrl = TextEditingController();
   final _detalleVacunasCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-llenar si estamos editando
+    if (widget.petToEdit != null && widget.petToEdit!.fichaMedica != null) {
+      final f = widget.petToEdit!.fichaMedica!;
+      _esterilizado = f.esEsterilizado;
+      _desparasitado = f.esDesparasitado;
+      _vacunasDia = f.tieneVacunas;
+      _microchip = f.tieneMicrochip;
+      _pesoCtrl.text = f.pesoKg.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pesoCtrl.dispose();
+    _descDiscapacidadCtrl.dispose();
+    _detalleVacunasCtrl.dispose();
+    super.dispose();
+  }
 
   void _submit() {
     context.read<PetBloc>().add(PetCreateStep2Changed(

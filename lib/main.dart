@@ -10,6 +10,7 @@ import 'src/features/auth/presentation/bloc/auth_bloc.dart';
 import 'src/features/auth/presentation/screens/welcome_screen.dart'; // Importamos Welcome
 import 'src/features/adoptions/presentation/screens/home_adopter_screen.dart';
 import 'src/features/foundations/presentation/screens/home_foundation_screen.dart';
+import 'src/features/pets/presentation/bloc/pet_bloc.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +34,8 @@ class MyApp extends StatelessWidget {
       providers: [
         // Inyectamos el AuthBloc globalmente
         BlocProvider(create: (_) => di.sl<AuthBloc>()..add(AuthCheckStatus())),
+        // Inyectamos el PetBloc globalmente para que esté disponible en ambas pantallas
+        BlocProvider(create: (_) => di.sl<PetBloc>()),
       ],
       child: MaterialApp(
         title: 'PetAdopt',

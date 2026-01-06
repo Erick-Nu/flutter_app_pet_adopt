@@ -1,4 +1,3 @@
-import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 // Asegúrate de que las rutas sean correctas según tu proyecto
@@ -6,9 +5,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/services/pdf_generator_service.dart';
 import '../../domain/entities/pet_entity.dart';
 import '../bloc/pet_bloc.dart';
-import '../bloc/pet_event.dart';
 import '../bloc/pet_state.dart';
- 
+import 'create_pet/pet_creation_wizard.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final PetEntity pet;
@@ -78,7 +76,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               actions: [
                 // Botón Editar
                 Container(
-                  margin: const EdgeInsets.only(right: 8),
+                  margin: const EdgeInsets.only(right: 16),
                   decoration: BoxDecoration(
                     color: Colors.black26,
                     shape: BoxShape.circle,
@@ -86,21 +84,18 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   child: IconButton(
                     icon: const Icon(Icons.edit, color: Colors.white),
                     onPressed: () {
-                      // Navegación a edición (puedes conectar tu Wizard aquí)
-                      // Ojo: Para editar con el Wizard, necesitarías adaptarlo para recibir una 'pet' existente
+                      // Navegar al Wizard en modo edición
+                      final petBloc = context.read<PetBloc>();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BlocProvider.value(
+                            value: petBloc,
+                            child: PetCreationWizard(petToEdit: widget.pet),
+                          ),
+                        ),
+                      );
                     },
-                  ),
-                ),
-                // Botón Eliminar
-                Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.white),
-                    onPressed: () => _confirmDelete(context),
                   ),
                 ),
               ],
@@ -119,13 +114,16 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                             itemBuilder: (_, idx) => Image.network(images[idx], fit: BoxFit.cover),
                           ),
 
-                    // Degradado superior
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.center,
-                          colors: [Colors.black54, Colors.transparent],
+                    // Degradado superior (no bloquear gestos del carrusel)
+                    IgnorePointer(
+                      ignoring: true,
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.center,
+                            colors: [Colors.black54, Colors.transparent],
+                          ),
                         ),
                       ),
                     ),
@@ -136,21 +134,24 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         bottom: 40,
                         left: 0,
                         right: 0,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: images.asMap().entries.map((entry) {
-                            return Container(
-                              width: 8,
-                              height: 8,
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _currentImageIndex == entry.key
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.4),
-                              ),
-                            );
-                          }).toList(),
+                        child: IgnorePointer(
+                          ignoring: true,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: images.asMap().entries.map((entry) {
+                              return Container(
+                                width: 8,
+                                height: 8,
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _currentImageIndex == entry.key
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.4),
+                                ),
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
                   ],
@@ -171,7 +172,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // --- HEADER: Nombre y Estado ---
+                      // ENCABEZADO CON PROTECCIÓN DE ESPACIO
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,12 +181,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                             child: Text(
                               widget.pet.nombre,
                               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                    fontWeight: FontWeight.w800,
                                     fontSize: 32,
+                                    fontWeight: FontWeight.w800,
                                     color: Colors.black87,
                                   ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: 12),
                           _buildStatusBadge(widget.pet.status),
                         ],
                       ),
@@ -199,31 +203,30 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       
                       const SizedBox(height: 24),
 
-                      // --- ATRIBUTOS RÁPIDOS (Grid) ---
+                      const SizedBox(height: 20),
+
+                      // TARJETAS DE INFO RÁPIDA (Responsive)
                       Row(
                         children: [
-                          _buildAttributeCard(
-                            "Edad", 
-                            "${widget.pet.edad ?? '?'} años", 
-                            Icons.cake_rounded, 
-                            Colors.orange.shade100, 
-                            Colors.orange.shade800
+                          _buildInfoCard(
+                            "Edad",
+                            "${widget.pet.edad ?? '?'} años",
+                            Icons.cake_rounded,
+                            Colors.orange,
                           ),
-                          const SizedBox(width: 12),
-                          _buildAttributeCard(
-                            "Sexo", 
-                            widget.pet.sexo.toUpperCase(), 
-                            widget.pet.sexo == 'macho' ? Icons.male : Icons.female, 
-                            widget.pet.sexo == 'macho' ? Colors.blue.shade50 : Colors.pink.shade50,
-                            widget.pet.sexo == 'macho' ? Colors.blue.shade700 : Colors.pink.shade700,
+                          const SizedBox(width: 8),
+                          _buildInfoCard(
+                            "Sexo",
+                            widget.pet.sexo,
+                            widget.pet.sexo == 'macho' ? Icons.male : Icons.female,
+                            widget.pet.sexo == 'macho' ? Colors.blue : Colors.pink,
                           ),
-                          const SizedBox(width: 12),
-                          _buildAttributeCard(
-                            "Tamaño", 
-                            widget.pet.tamano ?? 'N/A', 
-                            Icons.height, 
-                            Colors.purple.shade50, 
-                            Colors.purple.shade700
+                          const SizedBox(width: 8),
+                          _buildInfoCard(
+                            "Tamaño",
+                            widget.pet.tamano ?? 'Mediano',
+                            Icons.height,
+                            Colors.purple,
                           ),
                         ],
                       ),
@@ -409,31 +412,36 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
   // --- WIDGETS AUXILIARES ---
 
-  Widget _buildAttributeCard(String label, String value, IconData icon, Color bgColor, Color iconColor) {
+  Widget _buildInfoCard(String label, String value, IconData icon, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
         decoration: BoxDecoration(
-          color: bgColor,
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Column(
           children: [
-            Icon(icon, color: iconColor, size: 28),
+            Icon(icon, color: color, size: 28),
             const SizedBox(height: 8),
-            Text(
-              value,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: iconColor,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value.toUpperCase(),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color.withOpacity(0.9),
+                  fontSize: 13,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(fontSize: 12, color: iconColor.withOpacity(0.7)),
+              style: TextStyle(
+                color: color.withOpacity(0.7),
+                fontSize: 11,
+              ),
             ),
           ],
         ),
@@ -501,28 +509,4 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('¿Eliminar mascota?'),
-        content: const Text('Esta acción no se puede deshacer.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              log('[PetDetail] Eliminando ${widget.pet.id}');
-              Navigator.pop(ctx);
-              context.read<PetBloc>().add(DeletePetEvent(widget.pet.id, widget.pet.fundacionId));
-            },
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-  }
 }

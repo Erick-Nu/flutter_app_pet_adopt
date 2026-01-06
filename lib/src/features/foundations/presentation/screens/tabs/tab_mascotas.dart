@@ -7,7 +7,6 @@ import 'package:flutter_app_pet_adopt/src/features/pets/presentation/screens/pet
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_bloc.dart';
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_event.dart';
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_state.dart';
-import 'package:flutter_app_pet_adopt/src/features/pets/presentation/screens/create_pet/pet_creation_wizard.dart';
 
 class TabMascotas extends StatefulWidget {
   const TabMascotas({super.key});
@@ -17,9 +16,36 @@ class TabMascotas extends StatefulWidget {
 }
 
 class _TabMascotasState extends State<TabMascotas> {
-  // Mock de categorías para filtrar
-  final List<String> _filters = ['Todos', 'Perros', 'Gatos', 'Otros'];
+  // Filtros por estado
+  final List<String> _filters = ['Todos', 'Disponible', 'Adoptado', 'En Espera'];
+  final List<String> _statusValues = ['', 'disponible', 'adoptado', 'en_espera'];
   int _selectedFilterIndex = 0;
+  
+  // Búsqueda por nombre
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Cargar mascotas cuando se inicializa el tab
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+      print('[TabMascotas] Inicializando tab con userId: $userId');
+      if (userId.isNotEmpty) {
+        print('[TabMascotas] Disparando LoadPets event');
+        context.read<PetBloc>().add(LoadPets(userId));
+      } else {
+        print('[TabMascotas] ERROR: userId está vacío!');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +70,12 @@ class _TabMascotasState extends State<TabMascotas> {
             children: [
               // Barra de Búsqueda
               TextField(
+                controller: _searchCtrl,
+                onChanged: (value) {
+                  setState(() => _searchQuery = value.toLowerCase());
+                },
                 decoration: InputDecoration(
-                  hintText: 'Buscar por nombre o raza...',
+                  hintText: 'Buscar por nombre...',
                   prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -106,25 +136,131 @@ class _TabMascotasState extends State<TabMascotas> {
         // 2. LISTA DE MASCOTAS
         // -------------------------------
         Expanded(
-          child: BlocBuilder<PetBloc, PetState>(
-            builder: (context, state) {
-              if (state is PetsLoading || state is PetsInitial) {
-                return const Center(child: CircularProgressIndicator(color: AppTheme.primaryOrange));
-              }
-              if (state is PetsError) {
-                return Center(child: Text('Error: ${state.message}'));
-              }
+          child: BlocConsumer<PetBloc, PetState>(
+            listener: (context, state) {
+              print('[TabMascotas] Estado del BLoC cambió a: ${state.runtimeType}');
               if (state is PetsLoaded) {
-                if (state.pets.isEmpty) {
+                print('[TabMascotas] PetsLoaded con ${state.pets.length} mascotas');
+              } else if (state is PetsError) {
+                print('[TabMascotas] PetsError: ${state.message}');
+              }
+            },
+            builder: (context, state) {
+              print('[TabMascotas] Construyendo UI con estado: ${state.runtimeType}');
+              
+              // Estado de carga
+              if (state is PetsLoading) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: AppTheme.primaryOrange),
+                      SizedBox(height: 16),
+                      Text('Cargando mascotas...', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                );
+              }
+              
+              // Estado inicial - forzar carga
+              if (state is PetsInitial) {
+                final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+                if (userId.isNotEmpty) {
+                  context.read<PetBloc>().add(LoadPets(userId));
+                }
+                return const Center(
+                  child: CircularProgressIndicator(color: AppTheme.primaryOrange),
+                );
+              }
+              
+              // Error
+              if (state is PetsError) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+                      const SizedBox(height: 16),
+                      Text('Error al cargar mascotas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(state.message, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () {
+                          final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+                          context.read<PetBloc>().add(LoadPets(userId));
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
+              // Datos cargados
+              if (state is PetsLoaded) {
+                // Filtrar por búsqueda y estado
+                final filteredPets = state.pets.where((pet) {
+                  // Filtrar por nombre
+                  final matchesSearch = _searchQuery.isEmpty || pet.nombre.toLowerCase().contains(_searchQuery);
+                  
+                  // Filtrar por estado
+                  final selectedStatus = _statusValues[_selectedFilterIndex];
+                  final matchesStatus = selectedStatus.isEmpty || pet.status == selectedStatus;
+                  
+                  return matchesSearch && matchesStatus;
+                }).toList();
+
+                if (filteredPets.isEmpty) {
                   return RefreshIndicator(
                     onRefresh: () async {
                       final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
                       context.read<PetBloc>().add(LoadPets(userId));
-                      // Esperar a que se carguen los datos
                       await Future.delayed(const Duration(milliseconds: 500));
                     },
                     color: AppTheme.primaryOrange,
-                    child: const Center(child: Text('No hay mascotas registradas 🐶')),
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height - 300,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _searchQuery.isNotEmpty || _selectedFilterIndex > 0
+                                    ? Icons.search_off
+                                    : Icons.pets_outlined,
+                                size: 80,
+                                color: Colors.grey.shade300,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _searchQuery.isNotEmpty || _selectedFilterIndex > 0
+                                    ? 'No hay mascotas que coincidan'
+                                    : 'No hay mascotas registradas',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _searchQuery.isNotEmpty || _selectedFilterIndex > 0
+                                    ? 'Intenta con otra búsqueda o filtro'
+                                    : 'Desliza hacia abajo para actualizar',
+                                style: TextStyle(color: Colors.grey.shade500),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   );
                 }
 
@@ -132,27 +268,17 @@ class _TabMascotasState extends State<TabMascotas> {
                   onRefresh: () async {
                     final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
                     context.read<PetBloc>().add(LoadPets(userId));
-                    // Esperar a que se carguen los datos
                     await Future.delayed(const Duration(milliseconds: 500));
                   },
                   color: AppTheme.primaryOrange,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: state.pets.length,
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                    itemCount: filteredPets.length,
                     itemBuilder: (context, index) {
-                      final pet = state.pets[index];
-                      final statusLabel = pet.status == 'disponible' ? 'En Adopción' : 'Reservado';
-                      final statusColor = pet.status == 'disponible' ? Colors.green : Colors.orange;
+                      final pet = filteredPets[index];
 
                       return PetCard(
-                        heroTag: pet.id,
-                        name: pet.nombre,
-                        breed: 'Raza desconocida',
-                        age: '${pet.edad ?? '-'} años',
-                        sex: pet.sexo == 'macho' ? 'Macho' : 'Hembra',
-                        status: statusLabel,
-                        statusColor: statusColor,
-                        imageUrl: pet.avatarUrl,
+                        pet: pet,
                         onTap: () {
                           final petBloc = context.read<PetBloc>();
                           Navigator.push(

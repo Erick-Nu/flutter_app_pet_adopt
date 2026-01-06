@@ -74,3 +74,8 @@ class PetCreateImagesChanged extends PetEvent {
 }
 
 class PetSubmitCreation extends PetEvent {}
+
+class PetSubmitUpdate extends PetEvent {
+  final String petId;
+  PetSubmitUpdate(this.petId);
+}

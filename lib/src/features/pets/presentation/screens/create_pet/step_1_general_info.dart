@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
+import '../../../domain/entities/pet_entity.dart';
 
 class Step1GeneralInfo extends StatefulWidget {
   final VoidCallback onNext;
-  const Step1GeneralInfo({super.key, required this.onNext});
+  final PetEntity? petToEdit;
+  
+  const Step1GeneralInfo({super.key, required this.onNext, this.petToEdit});
 
   @override
   State<Step1GeneralInfo> createState() => _Step1GeneralInfoState();
@@ -23,6 +26,28 @@ class _Step1GeneralInfoState extends State<Step1GeneralInfo> {
   // TODO: Estos deberían venir de una llamada a la BD (GetRaces/GetSpecies)
   int? _selectedEspecie; 
   int? _selectedRaza;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-llenar si estamos editando
+    if (widget.petToEdit != null) {
+      final p = widget.petToEdit!;
+      _nombreCtrl.text = p.nombre;
+      _descCtrl.text = p.descripcion ?? '';
+      if (p.edad != null) _edadCtrl.text = p.edad.toString();
+      _sexo = p.sexo;
+      _tamano = p.tamano ?? 'mediano';
+    }
+  }
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _descCtrl.dispose();
+    _edadCtrl.dispose();
+    super.dispose();
+  }
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
