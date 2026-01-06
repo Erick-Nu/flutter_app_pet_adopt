@@ -27,7 +27,14 @@ class AdopterProfileBloc extends Bloc<AdopterProfileEvent, AdopterProfileState> 
       try {
         await repository.updateProfile(event.adopter);
         dev.log('[AdopterProfileBloc] Perfil actualizado exitosamente');
-        emit(AdopterProfileLoaded(event.adopter));
+        
+        // 1. Emitir éxito para disparar el SnackBar en la UI
+        emit(AdopterProfileUpdated());
+        
+        // 2. Inmediatamente recargar los datos y cambiar a estado Loaded
+        // Esto evita que el SnackBar se muestre nuevamente al volver a la pantalla
+        add(LoadAdopterProfile(event.adopter.id));
+        
       } catch (e) {
         dev.log('[AdopterProfileBloc] Error al actualizar perfil', error: e);
         emit(AdopterProfileError(e.toString()));

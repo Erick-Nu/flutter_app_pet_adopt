@@ -1,12 +1,11 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/register_adoptante_usecase.dart';
 import '../../domain/usecases/register_fundacion_usecase.dart';
 import '../../domain/usecases/recover_password_usecase.dart';
-import '../../domain/repositories/auth_repository.dart';
-import 'package:get_it/get_it.dart';
 import '../../../../core/services/logger_service.dart';
 
 part 'auth_event.dart';
@@ -17,16 +16,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final RegisterAdoptanteUseCase registerAdoptanteUseCase;
   final RegisterFundacionUseCase registerFundacionUseCase;
   final RecoverPasswordUseCase recoverPasswordUseCase;
-  late final AuthRepository _authRepository;
 
   AuthBloc({
     required this.loginUseCase,
     required this.registerAdoptanteUseCase,
     required this.registerFundacionUseCase,
     required this.recoverPasswordUseCase,
-    AuthRepository? authRepository,
   }) : super(AuthInitial()) {
-    _authRepository = authRepository ?? GetIt.I<AuthRepository>();
     
     // 1. Login
     on<AuthLoginRequested>((event, emit) async {
@@ -78,22 +74,72 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     // 5. Verificar Sesión al inicio
     on<AuthCheckStatus>((event, emit) async {
+      emit(AuthLoading());
       try {
-        final user = await _authRepository.getCurrentUser();
-        if (user != null) {
-          emit(AuthAuthenticated(user));
+        final session = Supabase.instance.client.auth.currentSession;
+
+        if (session != null) {
+          final userId = session.user.id;
+          final email = session.user.email;
+
+          LoggerService.auth('Verificando sesión', data: {'userId': userId});
+
+          // 1. Intentar buscar en tabla fundaciones
+          final foundationData = await Supabase.instance.client
+              .from('fundaciones')
+              .select()
+              .eq('id', userId)
+              .maybeSingle();
+
+          if (foundationData != null) {
+            LoggerService.success('Usuario identificado como Fundación', context: 'AuthCheckStatus');
+            final user = UserEntity(id: userId, email: email ?? '', type: 'fundacion');
+            emit(AuthAuthenticated(user));
+            return;
+          }
+
+          // 2. Intentar buscar en tabla adoptantes
+          final adopterData = await Supabase.instance.client
+              .from('adoptantes')
+              .select()
+              .eq('id', userId)
+              .maybeSingle();
+
+          if (adopterData != null) {
+            LoggerService.success('Usuario identificado como Adoptante', context: 'AuthCheckStatus');
+            final user = UserEntity(id: userId, email: email ?? '', type: 'adoptante');
+            emit(AuthAuthenticated(user));
+            return;
+          }
+
+          // Si no está en ninguno (raro), logout
+          LoggerService.warning('Usuario sin tipo definido', context: 'AuthCheckStatus');
+          emit(AuthUnauthenticated());
         } else {
+          LoggerService.info('Sin sesión activa', context: 'AuthCheckStatus');
           emit(AuthUnauthenticated());
         }
-      } catch (_) {
+      } catch (e, stackTrace) {
+        LoggerService.error('Error verificando sesión', context: 'AuthCheckStatus', error: e, stackTrace: stackTrace);
+        emit(AuthError('Error verificando sesión: $e'));
         emit(AuthUnauthenticated());
       }
     });
 
     // 6. Logout
     on<AuthLogoutRequested>((event, emit) async {
-      await _authRepository.logout();
-      emit(AuthUnauthenticated());
+      try {
+        emit(AuthLoading());
+        // Cerrar sesión en Supabase
+        await Supabase.instance.client.auth.signOut();
+        LoggerService.info('Sesión cerrada exitosamente', context: 'AuthLogoutRequested');
+        emit(AuthUnauthenticated()); // Esto dispara el AuthWrapper en main.dart
+      } catch (e) {
+        LoggerService.error('Error al cerrar sesión', context: 'AuthLogoutRequested', error: e);
+        emit(AuthError('Error al cerrar sesión: $e'));
+        // Aún así emitimos Unauthenticated para poder hacer logout
+        emit(AuthUnauthenticated());
+      }
     });
   }
 

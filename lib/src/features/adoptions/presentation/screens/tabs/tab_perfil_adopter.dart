@@ -118,13 +118,22 @@ class _TabPerfilAdopterState extends State<TabPerfilAdopter> with SingleTickerPr
   Widget build(BuildContext context) {
     return BlocListener<AdopterProfileBloc, AdopterProfileState>(
       listener: (context, state) {
-        if (state is AdopterProfileLoaded) {
+        // Solo mostrar SnackBar cuando se actualiza el perfil (no cuando se carga)
+        if (state is AdopterProfileUpdated) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Perfil actualizado correctamente")),
+            const SnackBar(
+              content: Text("Perfil actualizado correctamente"),
+              backgroundColor: Colors.green,
+            ),
           );
+          // Volver a modo lectura después de actualizar
+          setState(() => _isEditing = false);
         } else if (state is AdopterProfileError) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error: ${state.message}"), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text("Error: ${state.message}"),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       },
