@@ -6,6 +6,7 @@ import '../../domain/usecases/register_adoptante_usecase.dart';
 import '../../domain/usecases/register_fundacion_usecase.dart';
 import '../../domain/usecases/recover_password_usecase.dart';
 import '../../domain/repositories/auth_repository.dart';
+import 'package:get_it/get_it.dart';
 import '../../../../core/services/logger_service.dart';
 
 part 'auth_event.dart';
@@ -16,15 +17,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final RegisterAdoptanteUseCase registerAdoptanteUseCase;
   final RegisterFundacionUseCase registerFundacionUseCase;
   final RecoverPasswordUseCase recoverPasswordUseCase;
-  final AuthRepository authRepository;
+  late final AuthRepository _authRepository;
 
   AuthBloc({
     required this.loginUseCase,
     required this.registerAdoptanteUseCase,
     required this.registerFundacionUseCase,
     required this.recoverPasswordUseCase,
-    required this.authRepository,
+    AuthRepository? authRepository,
   }) : super(AuthInitial()) {
+    _authRepository = authRepository ?? GetIt.I<AuthRepository>();
     
     // 1. Login
     on<AuthLoginRequested>((event, emit) async {
@@ -77,7 +79,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // 5. Verificar Sesión al inicio
     on<AuthCheckStatus>((event, emit) async {
       try {
-        final user = await authRepository.getCurrentUser();
+        final user = await _authRepository.getCurrentUser();
         if (user != null) {
           emit(AuthAuthenticated(user));
         } else {
@@ -90,7 +92,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     // 6. Logout
     on<AuthLogoutRequested>((event, emit) async {
-      await authRepository.logout();
+      await _authRepository.logout();
       emit(AuthUnauthenticated());
     });
   }

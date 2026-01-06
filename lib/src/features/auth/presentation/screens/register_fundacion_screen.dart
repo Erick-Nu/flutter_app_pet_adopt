@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_bloc.dart';
+import 'login_screen.dart';
 
 class RegisterFundacionScreen extends StatefulWidget {
   const RegisterFundacionScreen({super.key});
@@ -113,10 +114,16 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
               ),
             );
           } else if (state is AuthAuthenticated) {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            // Tras registro, forzamos logout y enviamos a Login para verificación
+            context.read<AuthBloc>().add(AuthLogoutRequested());
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+            );
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text("¡Fundación registrada! Bienvenido."),
+                content: const Text("Fundación registrada. Revisa tu correo y luego inicia sesión."),
                 backgroundColor: Colors.green.shade600,
                 behavior: SnackBarBehavior.floating,
               ),

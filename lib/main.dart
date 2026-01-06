@@ -8,6 +8,8 @@ import 'src/core/services/supabase_service.dart';
 import 'src/core/theme/app_theme.dart'; // Importamos el tema
 import 'src/features/auth/presentation/bloc/auth_bloc.dart';
 import 'src/features/auth/presentation/screens/welcome_screen.dart'; // Importamos Welcome
+import 'src/features/adoptions/presentation/screens/home_adopter_screen.dart';
+import 'src/features/foundations/presentation/screens/home_foundation_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,8 +41,29 @@ class MyApp extends StatelessWidget {
         // APLICAMOS EL TEMA NARANJA AQUÍ
         theme: AppTheme.lightTheme, 
         
-        // Arrancamos con la pantalla de bienvenida
-        home: const WelcomeScreen(),
+        // Enrutamos según estado de autenticación
+        home: BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, state) {
+            if (state is AuthLoading) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (state is AuthAuthenticated) {
+              final userType = state.user.type;
+              if (userType == 'adoptante') {
+                return const HomeAdopterScreen();
+              }
+              if (userType == 'fundacion') {
+                return const HomeFoundationScreen();
+              }
+            }
+
+            // Default: bienvenida para no autenticados o estados iniciales
+            return const WelcomeScreen();
+          },
+        ),
       ),
     );
   }

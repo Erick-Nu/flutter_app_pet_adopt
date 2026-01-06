@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_bloc.dart';
 import 'register_selector_screen.dart';
 import 'forgot_password_screen.dart';
+import '../../../../features/adoptions/presentation/screens/home_adopter_screen.dart';
+import '../../../../features/foundations/presentation/screens/home_foundation_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -62,7 +64,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 behavior: SnackBarBehavior.floating,
               ),
             );
-            // TODO: Navegar al Home aquí
+
+            final userType = state.user.type;
+
+            if (userType == 'adoptante') {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeAdopterScreen()),
+                (route) => false,
+              );
+            } else if (userType == 'fundacion') {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeFoundationScreen()),
+                (route) => false,
+              );
+            }
           }
         },
         child: SafeArea(
