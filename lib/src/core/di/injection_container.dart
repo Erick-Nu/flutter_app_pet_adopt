@@ -15,6 +15,7 @@ import '../../features/pets/domain/repositories/pet_repository.dart';
 import '../../features/pets/domain/usecases/create_pet_usecase.dart';
 import '../../features/pets/domain/usecases/delete_pet_usecase.dart';
 import '../../features/pets/domain/usecases/get_pets_usecase.dart';
+import '../../features/pets/domain/usecases/update_pet_usecase.dart';
 import '../../features/pets/data/repositories/pet_repository_impl.dart';
 import '../../features/pets/data/datasources/pet_remote_data_source.dart';
 
@@ -38,9 +39,10 @@ Future<void> initDependencies() async {
   ));
 
   sl.registerFactory(() => PetBloc(
-        getPetsUseCase: sl(),
-        createPetUseCase: sl(),
-        deletePetUseCase: sl(),
+    getPetsUseCase: sl(),
+    createPetUseCase: sl(),
+    deletePetUseCase: sl(),
+    updatePetUseCase: sl(),
   ));
 
   // Use Cases
@@ -53,6 +55,7 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => GetPetsUseCase(sl()));
   sl.registerLazySingleton(() => CreatePetUseCase(sl()));
   sl.registerLazySingleton(() => DeletePetUseCase(sl()));
+  sl.registerLazySingleton(() => UpdatePetUseCase(sl()));
 
   // Repository
   sl.registerLazySingleton<PetRepository>(() => PetRepositoryImpl(sl()));

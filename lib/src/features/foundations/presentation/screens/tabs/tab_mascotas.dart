@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/widgets/pet_card.dart';
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/screens/pet_detail_screen.dart';
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_bloc.dart';
+import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_event.dart';
 import 'package:flutter_app_pet_adopt/src/features/pets/presentation/bloc/pet_state.dart';
 
 class TabMascotas extends StatefulWidget {
@@ -113,40 +115,58 @@ class _TabMascotasState extends State<TabMascotas> {
               }
               if (state is PetsLoaded) {
                 if (state.pets.isEmpty) {
-                  return const Center(child: Text('No hay mascotas registradas 🐶'));
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+                      context.read<PetBloc>().add(LoadPets(userId));
+                      // Esperar a que se carguen los datos
+                      await Future.delayed(const Duration(milliseconds: 500));
+                    },
+                    color: AppTheme.primaryOrange,
+                    child: const Center(child: Text('No hay mascotas registradas 🐶')),
+                  );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: state.pets.length,
-                  itemBuilder: (context, index) {
-                    final pet = state.pets[index];
-                    final statusLabel = pet.status == 'disponible' ? 'En Adopción' : 'Reservado';
-                    final statusColor = pet.status == 'disponible' ? Colors.green : Colors.orange;
-
-                    return PetCard(
-                      heroTag: pet.id,
-                      name: pet.nombre,
-                      breed: 'Raza desconocida',
-                      age: '${pet.edad ?? '-'} años',
-                      sex: pet.sexo == 'macho' ? 'Macho' : 'Hembra',
-                      status: statusLabel,
-                      statusColor: statusColor,
-                      imageUrl: pet.avatarUrl,
-                      onTap: () {
-                        final petBloc = context.read<PetBloc>();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => BlocProvider.value(
-                              value: petBloc,
-                              child: PetDetailScreen(pet: pet),
-                            ),
-                          ),
-                        );
-                      },
-                    );
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+                    context.read<PetBloc>().add(LoadPets(userId));
+                    // Esperar a que se carguen los datos
+                    await Future.delayed(const Duration(milliseconds: 500));
                   },
+                  color: AppTheme.primaryOrange,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: state.pets.length,
+                    itemBuilder: (context, index) {
+                      final pet = state.pets[index];
+                      final statusLabel = pet.status == 'disponible' ? 'En Adopción' : 'Reservado';
+                      final statusColor = pet.status == 'disponible' ? Colors.green : Colors.orange;
+
+                      return PetCard(
+                        heroTag: pet.id,
+                        name: pet.nombre,
+                        breed: 'Raza desconocida',
+                        age: '${pet.edad ?? '-'} años',
+                        sex: pet.sexo == 'macho' ? 'Macho' : 'Hembra',
+                        status: statusLabel,
+                        statusColor: statusColor,
+                        imageUrl: pet.avatarUrl,
+                        onTap: () {
+                          final petBloc = context.read<PetBloc>();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BlocProvider.value(
+                                value: petBloc,
+                                child: PetDetailScreen(pet: pet),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 );
               }
               return const SizedBox.shrink();

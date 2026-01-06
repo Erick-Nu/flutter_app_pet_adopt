@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:developer' as dev;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pet_model.dart';
 import 'package:path/path.dart' as path; // Necesario para sacar extensión del archivo
@@ -91,8 +92,11 @@ class PetRemoteDataSource {
 
   Future<void> deletePet(String petId) async {
     try {
+      dev.log('[PetRemoteDataSource] Iniciando eliminación de mascota: $petId');
       await supabaseClient.from('mascotas').delete().eq('id', petId);
+      dev.log('[PetRemoteDataSource] Mascota eliminada exitosamente: $petId');
     } catch (e) {
+      dev.log('[PetRemoteDataSource] Error al eliminar mascota: $e', error: e);
       throw Exception('Error al eliminar mascota: $e');
     }
   }
@@ -109,6 +113,68 @@ class PetRemoteDataSource {
       return publicUrl;
     } catch (e) {
       throw Exception('Error subiendo imagen: $e');
+    }
+  }
+  
+
+  Future<void> updatePetFull(PetEntity pet) async {
+    try {
+      // 1. GESTIÓN DE AVATAR
+      String? avatarPathUrl = pet.avatarUrl; // Por defecto mantenemos el anterior
+      
+      // Si el usuario eligió una NUEVA foto, la subimos
+      if (pet.newAvatarFile != null) {
+        avatarPathUrl = await _uploadImage(pet.newAvatarFile!, 'avatars');
+      }
+
+      // 2. ACTUALIZAR TABLA MASCOTAS
+      final petData = {
+        'nombre': pet.nombre,
+        'descripcion': pet.descripcion,
+        'edad': pet.edad,
+        'sexo': pet.sexo,
+        // 'fundacion_id': ... (No se actualiza, la mascota no cambia de dueño)
+        'avatar_url': avatarPathUrl,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      await supabaseClient
+          .from('mascotas')
+          .update(petData)
+          .eq('id', pet.id);
+
+      // 3. ACTUALIZAR FICHA MÉDICA (Upsert: Actualiza o Inserta si no existe)
+      if (pet.fichaMedica != null) {
+        final fichaData = {
+          'mascota_id': pet.id, // Llave foránea para vincular
+          'es_esterilizado': pet.fichaMedica!.esEsterilizado,
+          'es_desparasitado': pet.fichaMedica!.esDesparasitado,
+          'tiene_vacunas_al_dia': pet.fichaMedica!.tieneVacunas,
+          'peso_kg': pet.fichaMedica!.pesoKg,
+          'observaciones_veterinarias': pet.fichaMedica!.observaciones,
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+
+        // Usamos upsert para manejar casos donde la ficha no existía antes
+        await supabaseClient.from('fichas_medicas').upsert(
+          fichaData, 
+          onConflict: 'mascota_id' // Clave única para detectar duplicados
+        );
+      }
+
+      // 4. AGREGAR NUEVAS FOTOS A LA GALERÍA
+      if (pet.newGalleryFiles != null && pet.newGalleryFiles!.isNotEmpty) {
+        for (var file in pet.newGalleryFiles!) {
+          final imageUrl = await _uploadImage(file, 'gallery/${pet.id}');
+          await supabaseClient.from('mascota_imagenes').insert({
+            'mascota_id': pet.id,
+            'imagen_url': imageUrl,
+          });
+        }
+      }
+
+    } catch (e) {
+      throw Exception('Error actualizando mascota: $e');
     }
   }
 }
