@@ -1,4 +1,4 @@
-import 'dart:io';
+
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -93,19 +93,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     String? telefono,
   }) async {
     try {
-      LoggerService.section('REGISTRO ADOPTANTE (Vía HTTP + Trigger)');
-      LoggerService.auth('Enviando datos...', data: {'email': email});
+      LoggerService.section('REGISTRO ADOPTANTE');
+      LoggerService.auth('Iniciando registro...', data: {'email': email, 'cedula': cedula});
       
-      // 1. URL de la API
+      // 1. VALIDACIÓN PREVIA: Email y Cédula
+      await _validateAdoptanteRegistration(email, cedula);
+      
+      // 2. URL de la API
       final url = Uri.parse('$_supabaseUrl/auth/v1/signup?redirect_to=$_redirectUrl/confirm-email');
       
-      // 2. Headers
       final headers = {
         'apikey': _anonKey,
         'Content-Type': 'application/json',
       };
 
-      // 3. Body con Metadata
       final body = jsonEncode({
         'email': email,
         'password': password,
@@ -118,7 +119,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         }
       });
 
-      // 4. Enviar Petición
       final response = await http.post(url, headers: headers, body: body);
 
       if (response.statusCode != 200) {
@@ -126,9 +126,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception(errorJson['msg'] ?? errorJson['error_description'] ?? 'Error en el registro');
       }
 
-      // --- CORRECCIÓN DEL ERROR DE ID ---
       final jsonResponse = jsonDecode(response.body);
-      // Supabase devuelve a veces { "id": "...", ... } directo o { "user": { "id": ... } }
       final userMap = jsonResponse['user'] ?? jsonResponse; 
       
       if (userMap == null || userMap['id'] == null) {
@@ -136,10 +134,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
 
       final String newUserId = userMap['id'];
-
       LoggerService.success('Registro completado. ID: $newUserId', context: 'Auth');
-      
-      // NO hacemos insert manual aquí. El Trigger DB lo hace.
       
       return UserModel(
         id: newUserId,
@@ -148,9 +143,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
     } catch (e) {
-      LoggerService.error('Error en registerAdoptante', context: 'Auth', error: e);
+      LoggerService.error('Falló el registro de adoptante', context: 'Auth', error: e);
       _handleRegistrationErrors(e);
-      throw Exception('Error en registro: ${e.toString()}');
+      throw Exception('Error: ${e.toString()}');
     }
   }
 
@@ -163,9 +158,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     String? telefono,
   }) async {
     try {
-      LoggerService.section('REGISTRO FUNDACIÓN (Vía HTTP + Trigger)');
-      LoggerService.auth('Enviando datos...', data: {'email': email});
+      LoggerService.section('REGISTRO FUNDACIÓN');
+      LoggerService.auth('Iniciando registro...', data: {'email': email});
 
+      // 1. VALIDACIÓN PREVIA: Email
+      await _validateFundacionRegistration(email);
+
+      // 2. URL de la API
       final url = Uri.parse('$_supabaseUrl/auth/v1/signup?redirect_to=$_redirectUrl/confirm-email');
       
       final headers = {
@@ -188,10 +187,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       if (response.statusCode != 200) {
         final errorJson = jsonDecode(response.body);
-        throw Exception(errorJson['msg'] ?? 'Error en el registro');
+        throw Exception(errorJson['msg'] ?? errorJson['error_description'] ?? 'Error en el registro');
       }
 
-      // --- CORRECCIÓN DEL ERROR DE ID ---
       final jsonResponse = jsonDecode(response.body);
       final userMap = jsonResponse['user'] ?? jsonResponse;
       
@@ -200,7 +198,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
 
       final String newUserId = userMap['id'];
-
       LoggerService.success('Registro completado. ID: $newUserId', context: 'Auth');
 
       return UserModel(
@@ -210,7 +207,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
     } catch (e) {
-      LoggerService.error('Error en registerFundacion', context: 'Auth', error: e);
+      LoggerService.error('Falló el registro de fundación', context: 'Auth', error: e);
       _handleRegistrationErrors(e);
       throw Exception('Error: $e');
     }
@@ -253,7 +250,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<void> logout() async {
     try {
-      LoggerService.auth('Cerrando sesión');
       await supabaseClient.auth.signOut();
     } catch (e) {
       LoggerService.error('Error al cerrar sesión', context: 'Auth', error: e);
@@ -288,13 +284,66 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     return UserModel(id: userId, email: email, type: userType);
   }
 
+  // ---------------------------------------------------------------------------
+  // MANEJO DE ERRORES Y VALIDACIONES
+  // ---------------------------------------------------------------------------
+
   void _handleRegistrationErrors(dynamic e) {
     final msg = e.toString();
-    if (msg.contains('already registered') || msg.contains('duplicate key')) {
-      throw Exception('Este correo o cédula ya está registrado.');
-    } else if (msg.contains('Password should be')) {
-      throw Exception('Contraseña muy corta.');
+    if (msg.contains('cedula') || msg.contains('adoptantes_cedula_key') || msg.contains('Este número de cédula')) {
+      throw Exception('Este número de cédula ya está registrado.');
+    }
+    if (msg.contains('User already registered') || msg.contains('already registered') || msg.contains('Este correo electrónico')) {
+      throw Exception('Este correo electrónico ya está registrado.');
+    }
+    if (msg.contains('Password should be')) {
+      throw Exception('La contraseña debe tener al menos 6 caracteres.');
     }
     throw Exception(msg.replaceAll('Exception:', '').trim());
+  }
+
+  /// Verifica Email y Cédula (para Adoptantes)
+  Future<void> _validateAdoptanteRegistration(String email, String cedula) async {
+    // 1. Validar Email
+    await _validateEmail(email);
+
+    // 2. Validar Cédula
+    try {
+      final bool exists = await supabaseClient.rpc(
+        'check_cedula_exists', 
+        params: {'cedula_to_check': cedula},
+      );
+      if (exists) throw Exception('Este número de cédula ya está registrado.');
+    } catch (e) {
+      if (e.toString().contains('cédula ya está registrado')) rethrow;
+      LoggerService.warning('Error RPC Cédula: $e', context: 'Auth');
+    }
+  }
+
+  /// Verifica Email (para Fundaciones)
+  Future<void> _validateFundacionRegistration(String email) async {
+    // 1. Validar Email
+    await _validateEmail(email);
+  }
+
+  /// Lógica centralizada de validación de Email
+  Future<void> _validateEmail(String email) async {
+    // A. Formato
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(email)) {
+      throw Exception('El formato del correo electrónico no es válido.');
+    }
+
+    // B. Unicidad (Usando RPC)
+    try {
+      final bool exists = await supabaseClient.rpc(
+        'check_email_exists', 
+        params: {'email_to_check': email},
+      );
+      if (exists) throw Exception('Este correo electrónico ya está registrado.');
+    } catch (e) {
+      if (e.toString().contains('correo electrónico ya está registrado')) rethrow;
+      LoggerService.warning('Error RPC Email: $e', context: 'Auth');
+    }
   }
 }
