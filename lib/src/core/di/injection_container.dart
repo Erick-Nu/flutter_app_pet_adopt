@@ -15,9 +15,12 @@ import '../../features/pets/domain/repositories/pet_repository.dart';
 import '../../features/pets/domain/usecases/create_pet_usecase.dart';
 import '../../features/pets/domain/usecases/delete_pet_usecase.dart';
 import '../../features/pets/domain/usecases/get_pets_usecase.dart';
+import '../../features/pets/domain/usecases/get_all_available_pets_usecase.dart';
 import '../../features/pets/domain/usecases/update_pet_usecase.dart';
 import '../../features/pets/data/repositories/pet_repository_impl.dart';
 import '../../features/pets/data/datasources/pet_remote_data_source.dart';
+import '../../features/adoptions/presentation/bloc/adopter_profile_bloc.dart';
+import '../../features/adoptions/data/repositories/adopter_repository_impl.dart';
 
 
 final sl = GetIt.instance; // Service Locator
@@ -43,7 +46,10 @@ Future<void> initDependencies() async {
     createPetUseCase: sl(),
     deletePetUseCase: sl(),
     updatePetUseCase: sl(),
+    getAllAvailablePetsUseCase: sl(),
   ));
+
+  sl.registerFactory(() => AdopterProfileBloc(sl()));
 
   // Use Cases
   sl.registerLazySingleton(() => LoginUseCase(sl()));
@@ -52,6 +58,7 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => RecoverPasswordUseCase(sl()));
 
   // Use Cases
+  sl.registerLazySingleton(() => GetAllAvailablePetsUseCase(sl()));
   sl.registerLazySingleton(() => GetPetsUseCase(sl()));
   sl.registerLazySingleton(() => CreatePetUseCase(sl()));
   sl.registerLazySingleton(() => DeletePetUseCase(sl()));
@@ -63,6 +70,13 @@ Future<void> initDependencies() async {
   // Data Source
   sl.registerLazySingleton(() => PetRemoteDataSource(sl()));
 
+  // ================= FEATURE: ADOPTIONS =================
+  
+  // Repository
+  sl.registerLazySingleton(() => AdopterRepositoryImpl(sl()));
+
+  // ================= FEATURE: AUTH =================
+  
   // Repository
   sl.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(sl()),

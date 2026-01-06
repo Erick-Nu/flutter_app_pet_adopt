@@ -16,6 +16,11 @@ class PetRepositoryImpl implements PetRepository {
   }
 
   @override
+  Future<List<PetEntity>> getAllAvailablePets() async {
+    return await dataSource.getAllAvailablePets();
+  }
+
+  @override
   Future<void> createPet(PetEntity pet) async {
     await dataSource.createPetFull(pet);
   }

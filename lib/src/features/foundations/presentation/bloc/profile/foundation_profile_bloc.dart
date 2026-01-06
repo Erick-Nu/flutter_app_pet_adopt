@@ -1,6 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geocoding/geocoding.dart';
-import '../../../domain/entities/foundation_entity.dart';
 import '../../../data/repositories/foundation_repository_impl.dart';
 import 'foundation_profile_event.dart';
 import 'foundation_profile_state.dart';

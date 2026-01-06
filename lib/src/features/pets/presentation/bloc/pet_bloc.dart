@@ -8,6 +8,7 @@ import '../../domain/entities/medical_record_entity.dart';
 import '../../domain/usecases/create_pet_usecase.dart';
 import '../../domain/usecases/delete_pet_usecase.dart';
 import '../../domain/usecases/get_pets_usecase.dart';
+import '../../domain/usecases/get_all_available_pets_usecase.dart';
 import '../../domain/usecases/update_pet_usecase.dart';
 import 'pet_event.dart';
 import 'pet_state.dart';
@@ -15,6 +16,7 @@ import 'pet_state.dart';
 class PetBloc extends Bloc<PetEvent, PetState> {
   // Inyectamos los casos de uso en lugar del repositorio directo
   final GetPetsUseCase getPetsUseCase;
+  final GetAllAvailablePetsUseCase getAllAvailablePetsUseCase;
   final CreatePetUseCase createPetUseCase;
   final DeletePetUseCase deletePetUseCase;
   final UpdatePetUseCase updatePetUseCase;
@@ -26,6 +28,7 @@ class PetBloc extends Bloc<PetEvent, PetState> {
 
   PetBloc({
     required this.getPetsUseCase,
+    required this.getAllAvailablePetsUseCase,
     required this.createPetUseCase,
     required this.deletePetUseCase,
     required this.updatePetUseCase,
@@ -42,6 +45,20 @@ class PetBloc extends Bloc<PetEvent, PetState> {
         emit(PetsLoaded(pets));
       } catch (e) {
         print('[PetBloc] ERROR en LoadPets: $e');
+        emit(PetsError(e.toString()));
+      }
+    });
+
+    on<LoadAllAvailablePets>((event, emit) async {
+      print('[PetBloc] LoadAllAvailablePets event recibido');
+      emit(PetsLoading());
+      try {
+        print('[PetBloc] Llamando a getAllAvailablePetsUseCase...');
+        final pets = await getAllAvailablePetsUseCase();
+        print('[PetBloc] getAllAvailablePetsUseCase completado. Mascotas disponibles: ${pets.length}');
+        emit(PetsLoaded(pets));
+      } catch (e) {
+        print('[PetBloc] ERROR en LoadAllAvailablePets: $e');
         emit(PetsError(e.toString()));
       }
     });

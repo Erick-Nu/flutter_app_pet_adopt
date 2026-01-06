@@ -30,6 +30,25 @@ class PetRemoteDataSource {
     }
   }
 
+  /// Traer todas las mascotas disponibles (Para el Home del Adoptante)
+  Future<List<PetModel>> getAllAvailablePets() async {
+    try {
+      dev.log('[PetRemoteDataSource] Cargando todas las mascotas disponibles');
+      final response = await supabaseClient
+          .from('mascotas')
+          .select('*, mascota_imagenes(imagen_url)')
+          .eq('status', 'disponible') // Solo disponibles
+          .order('created_at', ascending: false);
+
+      final pets = (response as List).map((e) => PetModel.fromJson(e)).toList();
+      dev.log('[PetRemoteDataSource] ${pets.length} mascotas disponibles cargadas');
+      return pets;
+    } catch (e) {
+      dev.log('[PetRemoteDataSource] Error cargando feed de mascotas', error: e);
+      throw Exception('Error cargando feed de mascotas: $e');
+    }
+  }
+
   Future<void> createPet(PetModel pet) async {
     try {
       dev.log('[PetRemoteDataSource] Creando mascota: ${pet.nombre}');

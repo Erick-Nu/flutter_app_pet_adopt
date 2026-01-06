@@ -10,8 +10,13 @@ import 'create_pet/pet_creation_wizard.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final PetEntity pet;
+  final bool isAdopterView;
 
-  const PetDetailScreen({super.key, required this.pet});
+  const PetDetailScreen({
+    super.key, 
+    required this.pet,
+    this.isAdopterView = false,
+  });
 
   @override
   State<PetDetailScreen> createState() => _PetDetailScreenState();
@@ -73,32 +78,34 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   shadows: [Shadow(color: Colors.black45, blurRadius: 5)],
                 ),
               ),
-              actions: [
-                // Botón Editar
-                Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.white),
-                    onPressed: () {
-                      // Navegar al Wizard en modo edición
-                      final petBloc = context.read<PetBloc>();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: petBloc,
-                            child: PetCreationWizard(petToEdit: widget.pet),
-                          ),
+              actions: widget.isAdopterView
+                  ? [] // No mostrar acciones para adoptantes
+                  : [
+                      // Botón Editar (solo para fundaciones)
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          shape: BoxShape.circle,
                         ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+                        child: IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.white),
+                          onPressed: () {
+                            // Navegar al Wizard en modo edición
+                            final petBloc = context.read<PetBloc>();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlocProvider.value(
+                                  value: petBloc,
+                                  child: PetCreationWizard(petToEdit: widget.pet),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
               flexibleSpace: FlexibleSpaceBar(
                 background: Stack(
                   fit: StackFit.expand,
@@ -391,21 +398,31 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           ],
         ),
         
-        // FAB PDF
-        floatingActionButton: _isGeneratingPdf
-            ? const FloatingActionButton(
-                onPressed: null,
-                child: CircularProgressIndicator(color: Colors.white),
-              )
-            : FloatingActionButton.extended(
-                onPressed: _generatePdf,
-                backgroundColor: Colors.black87,
-                icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
+        // FAB - Diferente según vista
+        floatingActionButton: widget.isAdopterView
+            ? FloatingActionButton.extended(
+                onPressed: () => _initiateAdoptionChat(context),
+                backgroundColor: AppTheme.primaryOrange,
+                icon: const Icon(Icons.volunteer_activism, color: Colors.white),
                 label: const Text(
-                  'FICHA TÉCNICA',
+                  'SOLICITAR ADOPCIÓN',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
-              ),
+              )
+            : _isGeneratingPdf
+                ? const FloatingActionButton(
+                    onPressed: null,
+                    child: CircularProgressIndicator(color: Colors.white),
+                  )
+                : FloatingActionButton.extended(
+                    onPressed: _generatePdf,
+                    backgroundColor: Colors.black87,
+                    icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
+                    label: const Text(
+                      'FICHA TÉCNICA',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
       ),
     );
   }
@@ -507,6 +524,20 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
+  }
+
+  /// Inicia el proceso de solicitud de adopción
+  void _initiateAdoptionChat(BuildContext context) async {
+    // 1. Verificar si ya existe chat (llamada a backend)
+    // 2. Si no, crear chat en tabla 'chats'
+    // 3. Navegar a la pantalla de chat
+    
+    // Por ahora, simularemos la navegación al Tab de Solicitudes
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Iniciando solicitud de adopción..."))
+    );
+    Navigator.pop(context); // Vuelve al home (donde podrá ir al tab solicitudes)
+    // TODO: Implementar navegación directa al ChatScreen específico
   }
 
 }

@@ -7,6 +7,8 @@ class LoadPets extends PetEvent {
   LoadPets(this.fundacionId);
 }
 
+class LoadAllAvailablePets extends PetEvent {}
+
 class AddPet extends PetEvent {
   final PetEntity pet;
   AddPet(this.pet);
