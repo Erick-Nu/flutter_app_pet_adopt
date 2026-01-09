@@ -1,43 +1,47 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/adopter_entity.dart';
-import 'package:path/path.dart' as path;
+import '../../domain/repositories/adopter_repository.dart';
+import '../datasources/adopter_remote_data_source.dart';
+import '../models/adopter_model.dart';
 
-class AdopterRepositoryImpl {
-  final SupabaseClient client;
-  AdopterRepositoryImpl(this.client);
+class AdopterRepositoryImpl implements AdopterRepository {
+  // Inyectamos el DataSource que acabamos de crear
+  final AdopterRemoteDataSource remoteDataSource;
 
-  Future<AdopterEntity> getProfile(String userId) async {
-    final response = await client.from('adoptantes').select().eq('id', userId).single();
-    return AdopterEntity(
-      id: response['id'],
-      nombre: response['nombre'],
-      cedula: response['cedula'],
-      telefono: response['telefono'],
-      avatarUrl: response['avatar_url'],
-      edad: response['edad'],
-      sexo: response['sexo'],
-    );
+  AdopterRepositoryImpl(this.remoteDataSource);
+
+  @override
+  Future<AdopterEntity> getAdopterProfile(String userId) async {
+    // Simplemente delegamos la llamada. 
+    // El DataSource devuelve un AdopterModel, que es válido porque extiende de AdopterEntity.
+    return await remoteDataSource.getAdopterProfile(userId);
   }
 
-  Future<void> updateProfile(AdopterEntity adopter) async {
-    String? avatarUrl = adopter.avatarUrl;
+  @override
+  Future<AdopterEntity> updateAdopterProfile(AdopterEntity adopter) async {
+    String? currentAvatarUrl = adopter.avatarUrl;
 
-    // Subir imagen si existe nueva
+    // 1. LÓGICA DE COORDINACIÓN: ¿Hay una foto nueva por subir?
     if (adopter.newAvatarFile != null) {
-      final fileExt = path.extension(adopter.newAvatarFile!.path);
-      final fileName = 'adopters/${adopter.id}/avatar_${DateTime.now().millisecondsSinceEpoch}$fileExt';
-      await client.storage.from('avatars').upload(fileName, adopter.newAvatarFile!);
-      avatarUrl = client.storage.from('avatars').getPublicUrl(fileName);
+      // Si hay archivo local, lo subimos primero al Storage
+      currentAvatarUrl = await remoteDataSource.uploadAvatar(
+        adopter.id, 
+        adopter.newAvatarFile!
+      );
     }
 
-    final data = {
-      'nombre': adopter.nombre,
-      'telefono': adopter.telefono,
-      'edad': adopter.edad,
-      'sexo': adopter.sexo,
-      'avatar_url': avatarUrl,
-    };
+    // 2. Preparamos el Modelo con la URL correcta (la nueva o la que ya tenía)
+    // Convertimos la Entidad (Domain) a Modelo (Data)
+    final adopterModel = AdopterModel(
+      id: adopter.id,
+      nombre: adopter.nombre,
+      cedula: adopter.cedula,
+      telefono: adopter.telefono,
+      avatarUrl: currentAvatarUrl, // Aquí va la URL actualizada (si cambió)
+      edad: adopter.edad,
+      sexo: adopter.sexo,
+    );
 
-    await client.from('adoptantes').update(data).eq('id', adopter.id);
+    // 3. Guardamos los datos en la Base de Datos
+    return await remoteDataSource.updateAdopterProfile(adopterModel);
   }
 }

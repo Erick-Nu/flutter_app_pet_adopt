@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_theme.dart';
 import 'login_screen.dart';
 import 'register_selector_screen.dart';
 
@@ -7,11 +8,8 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -31,7 +29,7 @@ class WelcomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: colorScheme.primary.withOpacity(0.2),
+                              color: AppTheme.primaryOrange.withOpacity(0.2),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),
@@ -49,7 +47,7 @@ class WelcomeScreen extends StatelessWidget {
                               return SizedBox(
                                 height: 300,
                                 child: Center(
-                                  child: CircularProgressIndicator(color: colorScheme.primary),
+                                  child: CircularProgressIndicator(color: AppTheme.primaryOrange),
                                 ),
                               );
                             },
@@ -75,14 +73,14 @@ class WelcomeScreen extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.favorite, color: colorScheme.primary, size: 20),
+                              Icon(Icons.favorite, color: AppTheme.primaryOrange, size: 20),
                               const SizedBox(width: 8),
                               const Text(
                                 '1000+ Adopciones',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
-                                  color: Colors.black87,
+                                  color: AppTheme.textPrimary,
                                 ),
                               ),
                             ],
@@ -107,9 +105,9 @@ class WelcomeScreen extends StatelessWidget {
                     Text(
                       'Encuentra tu\ncompañero ideal',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineLarge?.copyWith(
+                      style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: Colors.black87,
+                        color: AppTheme.textPrimary,
                         height: 1.1,
                         fontSize: 32,
                       ),
@@ -118,8 +116,8 @@ class WelcomeScreen extends StatelessWidget {
                     Text(
                       'Únete a nuestra comunidad y dale un hogar lleno de amor a quien más lo necesita.',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey.shade600,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
                         height: 1.5,
                         fontSize: 16,
                       ),
@@ -138,7 +136,7 @@ class WelcomeScreen extends StatelessWidget {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
+                          backgroundColor: AppTheme.primaryOrange,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -165,7 +163,7 @@ class WelcomeScreen extends StatelessWidget {
                           );
                         },
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black87,
+                          foregroundColor: AppTheme.textPrimary,
                           side: BorderSide(color: Colors.grey.shade300, width: 1.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),

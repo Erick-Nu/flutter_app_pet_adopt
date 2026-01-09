@@ -11,8 +11,6 @@ class AdopterProfileLoaded extends AdopterProfileState {
   AdopterProfileLoaded(this.adopter);
 }
 
-class AdopterProfileUpdated extends AdopterProfileState {}
-
 class AdopterProfileError extends AdopterProfileState {
   final String message;
   AdopterProfileError(this.message);

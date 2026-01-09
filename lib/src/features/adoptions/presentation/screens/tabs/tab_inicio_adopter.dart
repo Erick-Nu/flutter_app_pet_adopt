@@ -29,10 +29,12 @@ class _TabInicioAdopterState extends State<TabInicioAdopter> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.background,
       body: RefreshIndicator(
         onRefresh: () async => context.read<PetBloc>().add(LoadAllAvailablePets()),
         color: AppTheme.primaryOrange,
         child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
           slivers: [
             // 1. App Bar Flotante con Saludo
             SliverAppBar(
@@ -149,10 +151,12 @@ class _TabInicioAdopterState extends State<TabInicioAdopter> {
               builder: (context, state) {
                 if (state is PetsLoading) {
                   return const SliverFillRemaining(
+                    hasScrollBody: false,
                     child: Center(child: CircularProgressIndicator()),
                   );
                 } else if (state is PetsError) {
                   return SliverFillRemaining(
+                    hasScrollBody: false,
                     child: Center(child: Text(state.message)),
                   );
                 } else if (state is PetsLoaded) {
@@ -167,6 +171,7 @@ class _TabInicioAdopterState extends State<TabInicioAdopter> {
 
                   if (filteredPets.isEmpty) {
                     return const SliverFillRemaining(
+                      hasScrollBody: false,
                       child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,

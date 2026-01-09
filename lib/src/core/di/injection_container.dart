@@ -49,7 +49,7 @@ Future<void> initDependencies() async {
     getAllAvailablePetsUseCase: sl(),
   ));
 
-  sl.registerFactory(() => AdopterProfileBloc(sl()));
+  sl.registerFactory(() => AdopterProfileBloc(repository: sl()));
 
   // Use Cases
   sl.registerLazySingleton(() => LoginUseCase(sl()));

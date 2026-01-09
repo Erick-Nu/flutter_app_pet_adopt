@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get_it/get_it.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 // Imports de tu arquitectura
 import 'src/core/di/injection_container.dart' as di;
-import 'src/core/services/supabase_service.dart';
 import 'src/core/theme/app_theme.dart';
+import 'src/core/utils/snackbar_utils.dart';
+import 'src/core/widgets/app_loader.dart';
 import 'src/features/auth/presentation/bloc/auth_bloc.dart';
 import 'src/features/auth/presentation/screens/welcome_screen.dart';
 import 'src/features/adoptions/presentation/screens/home_adopter_screen.dart';
@@ -16,11 +18,33 @@ import 'src/features/pets/presentation/bloc/pet_bloc.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Cargar variables de entorno
-  await dotenv.load(fileName: ".env");
+  // 1. Intentar leer variables vía --dart-define (producción)
+  var supabaseUrl = const String.fromEnvironment('SUPABASE_URL');
+  var supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  // 2. Inicializar Supabase y Dependencias
-  await SupabaseService.initialize();
+  // 2. Si están vacías, fallback a .env (desarrollo local)
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    await dotenv.load(fileName: ".env");
+    supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+    supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  }
+
+  // 3. Validar que tengamos las credenciales
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    throw Exception(
+      'Las variables SUPABASE_URL y SUPABASE_ANON_KEY no están configuradas. '
+      'Opción 1: Pásalas con --dart-define al compilar (producción). '
+      'Opción 2: Configura .env en desarrollo.',
+    );
+  }
+
+  debugPrint('✅ Inicializando Supabase con URL: $supabaseUrl');
+
+  // 4. Inicializar Supabase y Dependencias
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
+  );
   await di.initDependencies();
 
   runApp(const MyApp());
@@ -63,12 +87,10 @@ class AuthWrapper extends StatelessWidget {
       listener: (context, state) {
         // Mostrar errores si los hay
         if (state is AuthError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
+          showAppSnackBar(
+            context,
+            message: state.message,
+            type: AppSnackBarType.error,
           );
         }
       },
@@ -80,7 +102,7 @@ class AuthWrapper extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
+                  AppLoader(),
                   SizedBox(height: 20),
                   Text('Cargando...'),
                 ],

@@ -21,7 +21,6 @@ abstract class AuthRemoteDataSource {
     required String email,
     required String password,
     required String nombre,
-    required String direccion,
     String? telefono,
   });
 
@@ -96,8 +95,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       LoggerService.section('REGISTRO ADOPTANTE');
       LoggerService.auth('Iniciando registro...', data: {'email': email, 'cedula': cedula});
       
-      // 1. VALIDACIÓN PREVIA: Email y Cédula
-      await _validateAdoptanteRegistration(email, cedula);
+      // 1. VALIDACIÓN PREVIA: Email y Cédula (comentado temporalmente si RPC no existe)
+      // await _validateAdoptanteRegistration(email, cedula);
       
       // 2. URL de la API
       final url = Uri.parse('$_supabaseUrl/auth/v1/signup?redirect_to=$_redirectUrl/confirm-email');
@@ -154,15 +153,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String email,
     required String password,
     required String nombre,
-    required String direccion,
     String? telefono,
   }) async {
     try {
       LoggerService.section('REGISTRO FUNDACIÓN');
       LoggerService.auth('Iniciando registro...', data: {'email': email});
 
-      // 1. VALIDACIÓN PREVIA: Email
-      await _validateFundacionRegistration(email);
+      // 1. VALIDACIÓN PREVIA: Email (comentado temporalmente si RPC no existe)
+      // await _validateFundacionRegistration(email);
 
       // 2. URL de la API
       final url = Uri.parse('$_supabaseUrl/auth/v1/signup?redirect_to=$_redirectUrl/confirm-email');
@@ -178,7 +176,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         'data': {
           'type': 'fundacion',
           'nombre': nombre,
-          'direccion': direccion,
           'telefono': telefono,
         }
       });
@@ -297,7 +294,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception('Este correo electrónico ya está registrado.');
     }
     if (msg.contains('Password should be')) {
-      throw Exception('La contraseña debe tener al menos 6 caracteres.');
+      // Supabase mensaje de contraseña débil
+      throw Exception('La contraseña debe tener al menos 8 caracteres.');
     }
     throw Exception(msg.replaceAll('Exception:', '').trim());
   }

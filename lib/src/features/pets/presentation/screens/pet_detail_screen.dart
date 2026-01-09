@@ -3,9 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 // Asegúrate de que las rutas sean correctas según tu proyecto
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/services/pdf_generator_service.dart';
+import '../../../../core/utils/snackbar_utils.dart';
 import '../../domain/entities/pet_entity.dart';
 import '../bloc/pet_bloc.dart';
 import '../bloc/pet_state.dart';
+import '../../../../core/widgets/app_loader.dart';
 import 'create_pet/pet_creation_wizard.dart';
 
 class PetDetailScreen extends StatefulWidget {
@@ -32,8 +34,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       await PdfGeneratorService.generateAndPrintPetSheet(widget.pet);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error generando PDF: $e')),
+      showAppSnackBar(
+        context,
+        message: 'Error generando PDF: $e',
+        type: AppSnackBarType.error,
       );
     } finally {
       if (mounted) setState(() => _isGeneratingPdf = false);
@@ -409,12 +413,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               )
-            : _isGeneratingPdf
-                ? const FloatingActionButton(
-                    onPressed: null,
-                    child: CircularProgressIndicator(color: Colors.white),
-                  )
-                : FloatingActionButton.extended(
+                          : _isGeneratingPdf
+                              ? const FloatingActionButton(
+                                  onPressed: null,
+                                  child: AppLoader(color: Colors.white, size: 28),
+                                )
+                              : FloatingActionButton.extended(
                     onPressed: _generatePdf,
                     backgroundColor: Colors.black87,
                     icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
@@ -533,8 +537,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     // 3. Navegar a la pantalla de chat
     
     // Por ahora, simularemos la navegación al Tab de Solicitudes
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Iniciando solicitud de adopción..."))
+    showAppSnackBar(
+      context,
+      message: "Iniciando solicitud de adopción...",
+      type: AppSnackBarType.info,
     );
     Navigator.pop(context); // Vuelve al home (donde podrá ir al tab solicitudes)
     // TODO: Implementar navegación directa al ChatScreen específico

@@ -18,7 +18,6 @@ abstract class AuthRepository {
     required String email,
     required String password,
     required String nombre,
-    required String direccion,
     String? telefono,
   });
 

@@ -29,6 +29,50 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthLoading());
       try {
         final user = await loginUseCase(event.email, event.password);
+        
+        // Verificar el rol del usuario en la BD
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId != null) {
+          // A) Buscar en Fundaciones
+          final fundacionData = await Supabase.instance.client
+              .from('fundaciones')
+              .select()
+              .eq('id', userId)
+              .maybeSingle();
+
+          if (fundacionData != null) {
+            final userWithType = UserEntity(
+              id: user.id,
+              email: user.email,
+              type: 'fundacion',
+            );
+            emit(AuthAuthenticated(userWithType));
+            return;
+          }
+
+          // B) Buscar en Adoptantes
+          final adoptanteData = await Supabase.instance.client
+              .from('adoptantes')
+              .select()
+              .eq('id', userId)
+              .maybeSingle();
+
+          if (adoptanteData != null) {
+            final userWithType = UserEntity(
+              id: user.id,
+              email: user.email,
+              type: 'adoptante',
+            );
+            emit(AuthAuthenticated(userWithType));
+            return;
+          }
+
+          // Si no aparece en ninguna tabla
+          emit(AuthError('Usuario no tiene perfil asignado.'));
+          emit(AuthUnauthenticated());
+          return;
+        }
+        
         emit(AuthAuthenticated(user));
       } catch (e) {
         emit(AuthError(e.toString()));
@@ -60,7 +104,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           email: event.email,
           password: event.password,
           nombre: event.nombre,
-          direccion: event.direccion,
           telefono: event.telefono,
         );
         emit(AuthAuthenticated(user));

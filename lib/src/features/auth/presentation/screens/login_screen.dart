@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/snackbar_utils.dart';
+import '../../../../core/widgets/app_loader.dart';
 import '../bloc/auth_bloc.dart';
 import 'register_selector_screen.dart';
 import 'forgot_password_screen.dart';
@@ -44,14 +46,15 @@ class _LoginScreenState extends State<LoginScreen> {
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.red,
-              ),
+            showAppSnackBar(
+              context,
+              message: state.message,
+              type: AppSnackBarType.error,
             );
+          } else if (state is AuthAuthenticated) {
+            // Cerrar la pantalla de login para dejar ver el Home
+            Navigator.of(context).popUntil((route) => route.isFirst);
           }
-          // La redirección exitosa la maneja el AuthWrapper en main.dart
         },
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -146,9 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   BlocBuilder<AuthBloc, AuthState>(
                     builder: (context, state) {
                       if (state is AuthLoading) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
+                        return const Center(child: AppLoader());
                       }
                       return ElevatedButton(
                         onPressed: _onLogin,

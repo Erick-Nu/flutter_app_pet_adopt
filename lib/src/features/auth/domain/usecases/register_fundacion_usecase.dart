@@ -10,14 +10,12 @@ class RegisterFundacionUseCase {
     required String email,
     required String password,
     required String nombre,
-    required String direccion,
     String? telefono,
   }) {
     return repository.registerFundacion(
       email: email,
       password: password,
       nombre: nombre,
-      direccion: direccion,
       telefono: telefono,
     );
   }

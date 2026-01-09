@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../../core/widgets/dashboard_stat_card.dart';
 
 class TabInicio extends StatelessWidget {
@@ -166,9 +167,11 @@ class TabInicio extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Navegar a publicar mascota')),
-          );
+              showAppSnackBar(
+                context,
+                message: 'Navegar a publicar mascota',
+                type: AppSnackBarType.info,
+              );
         },
         child: Container(
           width: double.infinity,

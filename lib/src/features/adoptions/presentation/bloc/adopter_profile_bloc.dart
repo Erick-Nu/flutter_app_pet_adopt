@@ -1,42 +1,29 @@
-import 'dart:developer' as dev;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../data/repositories/adopter_repository_impl.dart';
+import '../../domain/repositories/adopter_repository.dart';
 import 'adopter_profile_event.dart';
 import 'adopter_profile_state.dart';
 
 class AdopterProfileBloc extends Bloc<AdopterProfileEvent, AdopterProfileState> {
-  final AdopterRepositoryImpl repository;
+  final AdopterRepository repository;
 
-  AdopterProfileBloc(this.repository) : super(AdopterProfileInitial()) {
+  AdopterProfileBloc({required this.repository}) : super(AdopterProfileInitial()) {
+    
     on<LoadAdopterProfile>((event, emit) async {
-      dev.log('[AdopterProfileBloc] Cargando perfil de adoptante: ${event.userId}');
       emit(AdopterProfileLoading());
       try {
-        final adopter = await repository.getProfile(event.userId);
-        dev.log('[AdopterProfileBloc] Perfil cargado exitosamente: ${adopter.nombre}');
+        final adopter = await repository.getAdopterProfile(event.userId);
         emit(AdopterProfileLoaded(adopter));
       } catch (e) {
-        dev.log('[AdopterProfileBloc] Error al cargar perfil', error: e);
         emit(AdopterProfileError(e.toString()));
       }
     });
 
     on<UpdateAdopterProfile>((event, emit) async {
-      dev.log('[AdopterProfileBloc] Actualizando perfil: ${event.adopter.nombre}');
       emit(AdopterProfileLoading());
       try {
-        await repository.updateProfile(event.adopter);
-        dev.log('[AdopterProfileBloc] Perfil actualizado exitosamente');
-        
-        // 1. Emitir éxito para disparar el SnackBar en la UI
-        emit(AdopterProfileUpdated());
-        
-        // 2. Inmediatamente recargar los datos y cambiar a estado Loaded
-        // Esto evita que el SnackBar se muestre nuevamente al volver a la pantalla
-        add(LoadAdopterProfile(event.adopter.id));
-        
+        final updatedAdopter = await repository.updateAdopterProfile(event.adopter);
+        emit(AdopterProfileLoaded(updatedAdopter));
       } catch (e) {
-        dev.log('[AdopterProfileBloc] Error al actualizar perfil', error: e);
         emit(AdopterProfileError(e.toString()));
       }
     });

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/snackbar_utils.dart';
+import '../../../../core/widgets/app_loader.dart';
 import '../bloc/auth_bloc.dart';
 import 'login_screen.dart';
 
@@ -12,10 +15,12 @@ class RegisterFundacionScreen extends StatefulWidget {
 
 class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
   final _formKey = GlobalKey<FormState>();
+
+  // Regex para validación estricta de email
+  final _emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
   
-  // Controladores específicos para Fundación
-  final _nombreCtrl = TextEditingController(); // Nombre de la fundación
-  final _direccionCtrl = TextEditingController(); // Dirección física
+  // Controladores (sin dirección, se completará luego en perfil)
+  final _nombreCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -25,7 +30,6 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
   @override
   void dispose() {
     _nombreCtrl.dispose();
-    _direccionCtrl.dispose();
     _telefonoCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
@@ -36,19 +40,19 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
     if (_formKey.currentState!.validate()) {
       FocusScope.of(context).unfocus();
 
-      // Disparamos el evento específico de Fundación
+      // Disparamos el evento específico para Fundaciones
       context.read<AuthBloc>().add(
         AuthRegisterFundacionRequested(
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text.trim(),
           nombre: _nombreCtrl.text.trim(),
-          direccion: _direccionCtrl.text.trim(),
           telefono: _telefonoCtrl.text.trim(),
         ),
       );
     }
   }
 
+  // Widget auxiliar para inputs consistentes con el tema
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -59,10 +63,7 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
     String? Function(String?)? validator,
     TextCapitalization capitalization = TextCapitalization.none,
     TextInputAction action = TextInputAction.next,
-    int maxLines = 1,
   }) {
-    final theme = Theme.of(context);
-    
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: TextFormField(
@@ -71,25 +72,11 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
         obscureText: obscureText,
         textCapitalization: capitalization,
         textInputAction: action,
-        maxLines: maxLines,
+        style: AppTheme.lightTheme.textTheme.bodyLarge,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon),
+          prefixIcon: Icon(icon, color: AppTheme.primaryOrange),
           suffixIcon: suffixIcon,
-          filled: true,
-          fillColor: Colors.grey.shade50,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
-          ),
         ),
         validator: validator,
       ),
@@ -98,93 +85,74 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.red.shade400,
-                behavior: SnackBarBehavior.floating,
-              ),
+            showAppSnackBar(
+              context,
+              message: state.message,
+              type: AppSnackBarType.error,
             );
           } else if (state is AuthAuthenticated) {
-            // Tras registro, forzamos logout y enviamos a Login para verificación
+            // Logout forzado para obligar verificación de correo
             context.read<AuthBloc>().add(AuthLogoutRequested());
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (_) => const LoginScreen()),
               (route) => false,
             );
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text("Fundación registrada. Revisa tu correo y luego inicia sesión."),
-                backgroundColor: Colors.green.shade600,
-                behavior: SnackBarBehavior.floating,
-              ),
+            showAppSnackBar(
+              context,
+              message: "Fundación registrada. Revisa tu correo para activar la cuenta.",
+              type: AppSnackBarType.success,
             );
           }
         },
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: Form(
                 key: _formKey,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 20),
-                    
-                    // --- ENCABEZADO DIFERENTE PARA FUNDACIÓN ---
-                    // Usamos un ícono que represente refugio/casa
-                    Icon(Icons.pets_rounded, size: 64, color: Colors.blueAccent), 
+                    // --- ENCABEZADO ---
+                    Icon(
+                      Icons.volunteer_activism_rounded, // Icono distintivo de fundación
+                      size: 64, 
+                      color: AppTheme.primaryOrange
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       "Registro Fundación",
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineMedium?.copyWith(
+                      style: AppTheme.lightTheme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: AppTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Únete para gestionar adopciones y ayudar a más mascotas.",
+                      "Únete para gestionar adopciones y dar visibilidad a tus rescatados.",
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey.shade600,
-                      ),
+                      style: AppTheme.lightTheme.textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 32),
 
                     // --- CAMPOS DE TEXTO ---
                     
-                    // Nombre de la Fundación
                     _buildTextField(
                       controller: _nombreCtrl,
                       label: 'Nombre de la Fundación',
-                      icon: Icons.domain_rounded,
+                      icon: Icons.business_rounded,
                       capitalization: TextCapitalization.words,
                       validator: (v) => (v == null || v.isEmpty) ? 'El nombre es requerido' : null,
                     ),
 
-                    // Dirección (Campo importante para fundaciones)
-                    _buildTextField(
-                      controller: _direccionCtrl,
-                      label: 'Dirección Física',
-                      icon: Icons.location_on_outlined,
-                      capitalization: TextCapitalization.sentences,
-                      validator: (v) => (v == null || v.isEmpty) ? 'La dirección es requerida' : null,
-                    ),
-
-                    // Teléfono de Contacto
                     _buildTextField(
                       controller: _telefonoCtrl,
                       label: 'Teléfono de Contacto',
@@ -193,33 +161,36 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
                       validator: (v) => (v == null || v.isEmpty) ? 'El teléfono es requerido' : null,
                     ),
 
-                    // Email
                     _buildTextField(
                       controller: _emailCtrl,
-                      label: 'Correo Electrónico',
+                      label: 'Correo Institucional',
                       icon: Icons.email_outlined,
                       type: TextInputType.emailAddress,
-                      validator: (v) => (v == null || !v.contains('@')) ? 'Correo inválido' : null,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'El correo es requerido';
+                        if (!_emailRegex.hasMatch(v)) return 'Formato de correo inválido';
+                        return null;
+                      },
                     ),
 
-                    // Password
                     _buildTextField(
                       controller: _passCtrl,
                       label: 'Contraseña',
-                      icon: Icons.lock_outline,
+                      icon: Icons.lock_outline_rounded,
                       obscureText: !_isPassVisible,
                       action: TextInputAction.done,
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isPassVisible ? Icons.visibility : Icons.visibility_off,
-                          color: Colors.grey,
+                          _isPassVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                          color: AppTheme.textSecondary,
                         ),
                         onPressed: () => setState(() => _isPassVisible = !_isPassVisible),
                       ),
-                      validator: (v) => (v == null || v.length < 6) ? 'Mínimo 6 caracteres' : null,
+                      // Validación de seguridad: Mínimo 8 caracteres
+                      validator: (v) => (v == null || v.length < 8) ? 'Mínimo 8 caracteres' : null,
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
                     // --- BOTÓN REGISTRAR ---
                     SizedBox(
@@ -229,33 +200,12 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
                           if (state is AuthLoading) {
                             return ElevatedButton(
                               onPressed: null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: colorScheme.primary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const SizedBox(
-                                width: 24, 
-                                height: 24, 
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              ),
+                              child: const AppLoader(size: 24, color: AppTheme.surface),
                             );
                           }
                           return ElevatedButton(
                             onPressed: _onRegister,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: colorScheme.primary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text(
-                              "Registrar Fundación",
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
+                            child: const Text("Registrar Fundación"),
                           );
                         },
                       ),

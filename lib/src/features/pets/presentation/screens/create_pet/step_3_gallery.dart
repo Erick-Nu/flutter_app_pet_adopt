@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
 import '../../../domain/entities/pet_entity.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 
 class Step3Gallery extends StatefulWidget {
   final VoidCallback onSubmit;
@@ -49,8 +50,10 @@ class _Step3GalleryState extends State<Step3Gallery> {
     // En modo edición, solo enviamos las nuevas imágenes (las existentes se mantienen en el servidor)
     // En modo creación, podemos requerir al menos una
     if (widget.petToEdit == null && _images.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Debes subir al menos una foto de portada")),
+      showAppSnackBar(
+        context,
+        message: "Debes subir al menos una foto de portada",
+        type: AppSnackBarType.info,
       );
       return;
     }

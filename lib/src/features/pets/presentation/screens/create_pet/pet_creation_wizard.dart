@@ -4,6 +4,8 @@ import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
 import '../../bloc/pet_state.dart';
 import '../../../domain/entities/pet_entity.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
+import '../../../../../core/widgets/app_loader.dart';
 import 'step_1_general_info.dart';
 import 'step_2_medical_info.dart';
 import 'step_3_gallery.dart';
@@ -52,6 +54,12 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
     }
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _nextPage() {
     if (_currentStep < 2) {
       _pageController.nextPage(
@@ -94,21 +102,19 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
         } else if (state is PetsLoaded) {
           // 2. ÉXITO: Si la lista se recargó, significa que se creó/actualizó la mascota
           final message = isEditing ? '¡Mascota actualizada! 🎉' : '¡Mascota registrada exitosamente! 🐾';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: Colors.green,
-            ),
+          showAppSnackBar(
+            context,
+            message: message,
+            type: AppSnackBarType.success,
           );
           // 3. Regresar a la pantalla anterior
           Navigator.pop(context);
         } else if (state is PetsError) {
           // 4. ERROR
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: ${state.message}'),
-              backgroundColor: Colors.red,
-            ),
+          showAppSnackBar(
+            context,
+            message: 'Error: ${state.message}',
+            type: AppSnackBarType.error,
           );
         }
       },
@@ -131,14 +137,7 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
                   // Si está cargando, mostramos spinner en lugar del formulario
                   if (state is PetsLoading) {
                     return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text("Guardando mascota..."),
-                        ],
-                      ),
+                      child: AppLoader(label: "Guardando mascota..."),
                     );
                   }
 

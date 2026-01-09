@@ -14,6 +14,11 @@ class AppTheme {
       useMaterial3: true,
       primaryColor: primaryOrange,
       scaffoldBackgroundColor: background,
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: primaryOrange,
+        selectionColor: Color(0x33FF6F00),
+        selectionHandleColor: primaryOrange,
+      ),
 
       // Tipografía moderna y consistente
       textTheme: TextTheme(

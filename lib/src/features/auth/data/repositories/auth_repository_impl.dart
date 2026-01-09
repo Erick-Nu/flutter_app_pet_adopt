@@ -35,14 +35,12 @@ class AuthRepositoryImpl implements AuthRepository {
     required String email,
     required String password,
     required String nombre,
-    required String direccion,
     String? telefono,
   }) async {
     return await remoteDataSource.registerFundacion(
       email: email,
       password: password,
       nombre: nombre,
-      direccion: direccion,
       telefono: telefono,
     );
   }
