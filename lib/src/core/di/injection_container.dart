@@ -25,7 +25,9 @@ import '../../features/pets/data/repositories/catalog_repository_impl.dart';
 import '../../features/pets/domain/repositories/catalog_repository.dart';
 import '../../features/pets/domain/usecases/get_catalogs_usecase.dart';
 import '../../features/adoptions/presentation/bloc/adopter_profile_bloc.dart';
+import '../../features/adoptions/domain/repositories/adopter_repository.dart';
 import '../../features/adoptions/data/repositories/adopter_repository_impl.dart';
+import '../../features/adoptions/data/datasources/adopter_remote_data_source.dart';
 
 
 final sl = GetIt.instance; // Service Locator
@@ -93,7 +95,14 @@ Future<void> initDependencies() async {
   // ================= FEATURE: ADOPTIONS =================
   
   // Repository
-  sl.registerLazySingleton(() => AdopterRepositoryImpl(sl()));
+  sl.registerLazySingleton<AdopterRepository>(
+    () => AdopterRepositoryImpl(sl()),
+  );
+
+  // Data Source
+  sl.registerLazySingleton<AdopterRemoteDataSource>(
+    () => AdopterRemoteDataSourceImpl(sl()),
+  );
 
   // ================= FEATURE: AUTH =================
   

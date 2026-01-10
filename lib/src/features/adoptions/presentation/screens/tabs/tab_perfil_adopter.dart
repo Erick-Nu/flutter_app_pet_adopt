@@ -1,43 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
-import '../../../../../core/utils/snackbar_utils.dart';
-import '../../../domain/entities/adopter_entity.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_event.dart';
-import '../../bloc/adopter_profile.dart';
+import '../../../../auth/presentation/bloc/auth_state.dart';
+import '../../bloc/adopter_profile_bloc.dart';
+import '../../bloc/adopter_profile_state.dart';
 import '../perfil/edit_perfil_adopter_screen.dart';
 
-class TabPerfilAdopter extends StatefulWidget {
+class TabPerfilAdopter extends StatelessWidget {
   const TabPerfilAdopter({super.key});
 
-  @override
-  State<TabPerfilAdopter> createState() => _TabPerfilAdopterState();
-}
-
-class _TabPerfilAdopterState extends State<TabPerfilAdopter> {
-  @override
-  void initState() {
-    super.initState();
-    final userId = Supabase.instance.client.auth.currentUser!.id;
-    context.read<AdopterProfileBloc>().add(LoadAdopterProfile(userId));
-  }
-
-  void _logout() {
+  void _onLogout(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Cerrar Sesión"),
-        content: const Text("¿Estás seguro de que deseas cerrar sesión?"),
+        content: const Text("¿Estás seguro de que deseas salir?"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               context.read<AuthBloc>().add(AuthLogoutRequested());
             },
-            child: const Text("Cerrar Sesión", style: TextStyle(color: Colors.red)),
+            child: const Text("Salir", style: TextStyle(color: AppTheme.primaryOrange, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -46,259 +37,226 @@ class _TabPerfilAdopterState extends State<TabPerfilAdopter> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: BlocListener<AdopterProfileBloc, AdopterProfileState>(
-          listener: (context, state) {
-            if (state is AdopterProfileLoaded) {
-              showAppSnackBar(
-                context,
-                message: "Perfil actualizado correctamente",
-                type: AppSnackBarType.success,
-              );
-              // Recargar el perfil
-              final userId = Supabase.instance.client.auth.currentUser!.id;
-              context.read<AdopterProfileBloc>().add(LoadAdopterProfile(userId));
-            } else if (state is AdopterProfileError) {
-              showAppSnackBar(
-                context,
-                message: "Error: ${state.message}",
-                type: AppSnackBarType.error,
-              );
-            }
-          },
-          child: BlocBuilder<AdopterProfileBloc, AdopterProfileState>(
-            builder: (context, state) {
-              if (state is AdopterProfileLoading) {
-                return const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('Cargando perfil...', style: TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                );
-              }
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, authState) {
+        // Datos básicos desde Auth
+        final userEmail = (authState is AuthAuthenticated) ? authState.user.email : "cargando...";
 
-              if (state is AdopterProfileError) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
-                      const SizedBox(height: 16),
-                      Text(
-                        "Error al cargar perfil",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
-                        child: Text(
-                          state.message,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppTheme.textSecondary),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      FilledButton.icon(
-                        onPressed: () {
-                          final userId = Supabase.instance.client.auth.currentUser!.id;
-                          context.read<AdopterProfileBloc>().add(LoadAdopterProfile(userId));
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                );
-              }
+        // Datos extendidos desde el perfil del adoptante
+        final profileState = context.watch<AdopterProfileBloc>().state;
+        String displayName = "Adoptante";
+        String? avatarUrl;
 
-              if (state is AdopterProfileLoaded) {
-                final adopter = state.adopter;
+        if (profileState is AdopterProfileLoaded) {
+          displayName = profileState.adopter.nombre;
+          avatarUrl = profileState.adopter.avatarUrl;
+        }
 
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    final userId = Supabase.instance.client.auth.currentUser!.id;
-                    context.read<AdopterProfileBloc>().add(LoadAdopterProfile(userId));
-                  },
-                  color: AppTheme.primaryOrange,
-                  child: CustomScrollView(
-                    slivers: [
-                      // HEADER CON AVATAR
-                      SliverToBoxAdapter(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppTheme.primaryOrange,
-                                AppTheme.primaryOrange.withOpacity(0.8),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
+        return Scaffold(
+          backgroundColor: AppTheme.background,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 32), // Espacio superior
+
+                  // --- 1. HEADER TIPO TARJETA FLOTANTE ---
+                  _buildHorizontalHeader(context, displayName, userEmail, avatarUrl),
+
+                  // --- 2. OPCIONES DE MENÚ ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Sección: Mi Cuenta
+                        _buildSectionTitle("Mi Cuenta"),
+                        const SizedBox(height: 10),
+                        _buildMenuContainer([
+                          _buildMenuItem(
+                            icon: Icons.person_rounded,
+                            title: "Editar Perfil",
+                            subtitle: "Foto, nombre y teléfono",
+                            onTap: () {
+                              final state = context.read<AdopterProfileBloc>().state;
+                              if (state is AdopterProfileLoaded) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => BlocProvider.value(
+                                      value: context.read<AdopterProfileBloc>(),
+                                      child: EditPerfilAdopterScreen(
+                                        adopter: state.adopter,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Perfil aún cargando...')),
+                                );
+                              }
+                            },
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
-                          child: Column(
-                            children: [
-                              CircleAvatar(
-                                radius: 60,
-                                backgroundColor: Colors.white.withOpacity(0.2),
-                                backgroundImage: (adopter.avatarUrl != null &&
-                                        adopter.avatarUrl!.isNotEmpty
-                                    ? NetworkImage(adopter.avatarUrl!)
-                                        as ImageProvider
-                                    : null),
-                                child: (adopter.avatarUrl == null ||
-                                        adopter.avatarUrl!.isEmpty)
-                                    ? const Icon(Icons.person,
-                                        size: 60, color: Colors.white)
-                                    : null,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                adopter.nombre,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Adoptante Verificado',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
+                          _buildDivider(),
+                          _buildMenuItem(
+                            icon: Icons.folder_shared_rounded,
+                            title: "Mis Solicitudes",
+                            subtitle: "Estado de tus adopciones",
+                            // iconColor removido -> usa el default (Naranja)
+                            onTap: () {
+                              // TODO: Navegar al Tab de Solicitudes
+                            },
+                          ),
+                          _buildDivider(),
+                          _buildMenuItem(
+                            icon: Icons.favorite_rounded,
+                            title: "Favoritos",
+                            subtitle: "Mascotas guardadas",
+                            // iconColor removido -> usa el default (Naranja)
+                            onTap: () {},
+                          ),
+                        ]),
+
+                        const SizedBox(height: 24),
+
+                        // Sección: Configuración
+                        _buildSectionTitle("Configuración & Ayuda"),
+                        const SizedBox(height: 10),
+                        _buildMenuContainer([
+                          _buildMenuItem(
+                            icon: Icons.notifications_none_rounded,
+                            title: "Notificaciones",
+                            onTap: () {},
+                          ),
+                          _buildDivider(),
+                          _buildMenuItem(
+                            icon: Icons.privacy_tip_outlined,
+                            title: "Privacidad y Seguridad",
+                            onTap: () {},
+                          ),
+                          _buildDivider(),
+                          _buildMenuItem(
+                            icon: Icons.help_outline_rounded,
+                            title: "Ayuda y Soporte",
+                            onTap: () {},
+                          ),
+                        ]),
+                        
+                        const SizedBox(height: 30),
+                        
+                        // Versión de la app
+                        Center(
+                          child: Text(
+                            "PetAdopt v1.0.0",
+                            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                           ),
                         ),
-                      ),
-
-                      // CONTENIDO PRINCIPAL
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // INFORMACIÓN PERSONAL
-                              const Text(
-                                'Información Personal',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              _buildModernInfoCard(
-                                icon: Icons.credit_card_rounded,
-                                title: 'Cédula',
-                                value: adopter.cedula,
-                                color: AppTheme.primaryOrange,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildModernInfoCard(
-                                icon: Icons.phone_rounded,
-                                title: 'Teléfono',
-                                value: adopter.telefono ?? 'No registrado',
-                                color: Colors.green,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildModernInfoCard(
-                                icon: Icons.cake_rounded,
-                                title: 'Edad',
-                                value: adopter.edad?.toString() ?? 'No registrada',
-                                color: Colors.blue,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildModernInfoCard(
-                                icon: Icons.wc_rounded,
-                                title: 'Género',
-                                value: adopter.sexo ?? 'No registrado',
-                                color: Colors.purple,
-                              ),
-                              const SizedBox(height: 32),
-                              _buildActionsSection(adopter),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
-                );
-              }
-
-              return const Center(child: Text("No hay datos"));
-            },
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildModernInfoCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-  }) {
+  // --- WIDGETS COMPONENTES ---
+
+  Widget _buildHorizontalHeader(BuildContext context, String name, String email, String? avatarUrl) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.primaryOrange,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
+            color: AppTheme.primaryOrange.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          )
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // 1. IMAGEN (Izquierda)
           Container(
-            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
               shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.white,
+              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                  ? NetworkImage(avatarUrl)
+                  : const AssetImage('assets/images/default_profile.png') as ImageProvider,
+            ),
           ),
+          
           const SizedBox(width: 16),
+
+          // 2. TEXTOS (Centro)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                  name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    email,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // 3. BOTÓN SALIR
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _onLogout(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                ),
+                child: const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
+              ),
             ),
           ),
         ],
@@ -306,97 +264,98 @@ class _TabPerfilAdopterState extends State<TabPerfilAdopter> {
     );
   }
 
-  Widget _buildActionsSection(AdopterEntity adopter) {
-    return Column(
-      children: [
-        // BOTÓN EDITAR
-        Container(
-          width: double.infinity,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppTheme.primaryOrange,
-                AppTheme.primaryOrange.withOpacity(0.8),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryOrange.withOpacity(0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey.shade600,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuContainer(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+    Color iconColor = AppTheme.primaryOrange, // Por defecto es Naranja
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 22),
               ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 24, color: Colors.grey.shade300),
             ],
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BlocProvider.value(
-                      value: context.read<AdopterProfileBloc>(),
-                      child: EditPerfilAdopterScreen(adopter: adopter),
-                    ),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.edit_rounded, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text(
-                    'Editar Perfil',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
-        const SizedBox(height: 12),
-        // BOTÓN CERRAR SESIÓN
-        Container(
-          width: double.infinity,
-          height: 56,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.red.shade300, width: 1.5),
-            color: Colors.red.shade50,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _logout,
-              borderRadius: BorderRadius.circular(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.logout_rounded,
-                      color: Colors.red.shade600, size: 20),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Cerrar Sesión',
-                    style: TextStyle(
-                      color: Colors.red.shade600,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
+  }
+
+  Widget _buildDivider() {
+    return Divider(height: 1, thickness: 0.5, color: Colors.grey.shade100, indent: 60);
   }
 }

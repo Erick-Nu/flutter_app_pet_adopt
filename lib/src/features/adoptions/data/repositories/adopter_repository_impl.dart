@@ -35,6 +35,7 @@ class AdopterRepositoryImpl implements AdopterRepository {
       id: adopter.id,
       nombre: adopter.nombre,
       cedula: adopter.cedula,
+      email: adopter.email,
       telefono: adopter.telefono,
       avatarUrl: currentAvatarUrl, // Aquí va la URL actualizada (si cambió)
       edad: adopter.edad,

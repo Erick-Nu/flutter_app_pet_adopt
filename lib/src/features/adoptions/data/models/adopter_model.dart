@@ -5,6 +5,7 @@ class AdopterModel extends AdopterEntity {
     required super.id,
     required super.nombre,
     required super.cedula,
+    required super.email,
     super.telefono,
     super.avatarUrl,
     super.edad,
@@ -17,6 +18,7 @@ class AdopterModel extends AdopterEntity {
       id: json['id'], 
       nombre: json['nombre'] ?? '',
       cedula: json['cedula'] ?? '', 
+      email: json['email'] ?? '',
       telefono: json['telefono'],
       avatarUrl: json['avatar_url'], 
       edad: json['edad'],
@@ -31,6 +33,7 @@ class AdopterModel extends AdopterEntity {
       'telefono': telefono,
       'edad': edad,
       'sexo': sexo,
+      if (avatarUrl != null) 'avatar_url': avatarUrl,
     };
   }
 }

@@ -4,6 +4,7 @@ class AdopterEntity {
   final String id;
   final String nombre;
   final String cedula;
+  final String email;
   final String? telefono;
   final String? avatarUrl;
   final int? edad;
@@ -16,6 +17,7 @@ class AdopterEntity {
     required this.id,
     required this.nombre,
     required this.cedula,
+    required this.email,
     this.telefono,
     this.avatarUrl,
     this.edad,
@@ -34,6 +36,7 @@ class AdopterEntity {
     return AdopterEntity(
       id: id,
       cedula: cedula, // La cédula no suele cambiar
+      email: email,
       nombre: nombre ?? this.nombre,
       telefono: telefono ?? this.telefono,
       edad: edad ?? this.edad,
