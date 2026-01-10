@@ -44,7 +44,7 @@ class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
     const TabInicio(),
     const TabMascotas(),
     const TabSolicitudes(),
-    const TabProfile(),
+    const TabPerfilFundacion(),
   ];
 
   @override
@@ -107,25 +107,21 @@ class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
             selectedIndex: _currentIndex,
             onDestinationSelected: (index) => setState(() => _currentIndex = index),
             indicatorColor: primaryColor.withOpacity(0.1),
-            destinations: const [
-              NavigationDestination(
+            destinations: [
+              const NavigationDestination(
                 icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard, color: primaryColor),
                 label: 'Inicio',
               ),
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.pets_outlined),
-                selectedIcon: Icon(Icons.pets, color: primaryColor),
                 label: 'Mascotas',
               ),
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.mark_email_unread_outlined),
-                selectedIcon: Icon(Icons.mark_email_unread, color: primaryColor),
                 label: 'Solicitudes',
               ),
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person, color: primaryColor),
                 label: 'Perfil',
               ),
             ],

@@ -2,6 +2,7 @@ import '../../domain/entities/pet_entity.dart';
 
 abstract class PetEvent {}
 
+// --- EVENTOS DE CARGA ---
 class LoadPets extends PetEvent {
   final String fundacionId;
   LoadPets(this.fundacionId);
@@ -9,6 +10,16 @@ class LoadPets extends PetEvent {
 
 class LoadAllAvailablePets extends PetEvent {}
 
+// NUEVO: Cargar catálogos iniciales (Especies + Cualidades)
+class LoadCatalogs extends PetEvent {}
+
+// NUEVO: Cargar razas dinámicamente según la especie seleccionada
+class LoadBreeds extends PetEvent {
+  final int speciesId;
+  LoadBreeds(this.speciesId);
+}
+
+// --- EVENTOS CRUD ---
 class AddPet extends PetEvent {
   final PetEntity pet;
   AddPet(this.pet);
@@ -21,19 +32,19 @@ class UpdatePetEvent extends PetEvent {
 
 class DeletePetEvent extends PetEvent {
   final String petId;
-  final String fundacionId; // Para recargar la lista
+  final String fundacionId;
   DeletePetEvent(this.petId, this.fundacionId);
 }
 
-// Eventos para el formulario multipasos
+// --- EVENTOS WIZARD (MULTIPASOS) ---
 class PetCreateStep1Changed extends PetEvent {
   final String nombre;
   final String? descripcion;
   final int? edad;
-  final String sexo; // 'macho' o 'hembra'
-  final String tamano; // 'pequeño', 'mediano', 'grande'
-  final int? especieId;
-  final int? razaId;
+  final String sexo;
+  final String tamano;
+  final int? especieId; // ID seleccionado
+  final int? razaId;    // ID seleccionado
 
   PetCreateStep1Changed({
     required this.nombre,
@@ -71,7 +82,7 @@ class PetCreateStep2Changed extends PetEvent {
 }
 
 class PetCreateImagesChanged extends PetEvent {
-  final List<String> imagePaths; // Rutas locales de las fotos seleccionadas
+  final List<String> imagePaths;
   PetCreateImagesChanged(this.imagePaths);
 }
 

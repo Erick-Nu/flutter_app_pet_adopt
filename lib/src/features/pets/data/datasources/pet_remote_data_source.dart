@@ -65,50 +65,43 @@ class PetRemoteDataSource {
   Future<void> createPetFull(PetEntity pet) async {
     try {
       dev.log('[PetRemoteDataSource] Iniciando creación completa de mascota: ${pet.nombre}');
-      
-      // 1. SUBIR AVATAR (Si existe)
-      String? avatarPathUrl;
-      if (pet.newAvatarFile != null) {
-        dev.log('[PetRemoteDataSource] Subiendo avatar para: ${pet.nombre}');
-        avatarPathUrl = await _uploadImage(pet.newAvatarFile!, 'avatars');
-        dev.log('[PetRemoteDataSource] Avatar subido exitosamente: $avatarPathUrl');
-      }
 
-      // 2. LLAMAR A LA FUNCIÓN RPC (Transacción Atómica)
-      // Esto guarda mascota + ficha al mismo tiempo.
-      dev.log('[PetRemoteDataSource] Llamando RPC registrar_mascota_completa');
-      final response = await supabaseClient.rpc('registrar_mascota_completa', params: {
-        'p_nombre': pet.nombre,
-        'p_descripcion': pet.descripcion,
-        'p_edad': pet.edad,
-        'p_sexo': pet.sexo, // Asegúrate de enviar 'macho' o 'hembra' exacto
-        'p_fundacion_id': pet.fundacionId,
-        'p_avatar_url': avatarPathUrl,
-        
-        // Datos Ficha Médica (Manejamos nulos con valores por defecto)
-        'p_es_esterilizado': pet.fichaMedica?.esEsterilizado ?? false,
-        'p_es_desparasitado': pet.fichaMedica?.esDesparasitado ?? false,
-        'p_tiene_vacunas': pet.fichaMedica?.tieneVacunas ?? false,
-        'p_peso': pet.fichaMedica?.pesoKg ?? 0.0,
-        'p_observaciones': pet.fichaMedica?.observaciones ?? '',
-      });
-      
-      final newPetId = response as String; // ID devuelto por la función SQL
-      dev.log('[PetRemoteDataSource] Mascota creada con ID: $newPetId');
+      // Convertir PetEntity -> PetModel para aprovechar toJson (incluye raza/especie/tamaño)
+      final petModel = PetModel(
+        id: pet.id,
+        nombre: pet.nombre,
+        descripcion: pet.descripcion,
+        edad: pet.edad,
+        sexo: pet.sexo,
+        fundacionId: pet.fundacionId,
+        tamano: pet.tamano,
+        razaId: pet.razaId,
+        especieId: pet.especieId,
+        avatarUrl: pet.avatarUrl,
+        galleryUrls: pet.galleryUrls,
+      );
 
-      // 3. SUBIR GALERÍA (Esto va aparte porque son múltiples archivos)
-      // Si esto falla, la mascota ya existe, pero sin fotos extra. Es aceptable.
+      // Convertir ficha médica si existe
+      final medicalModel = pet.fichaMedica != null
+          ? MedicalRecordModel(
+              esEsterilizado: pet.fichaMedica!.esEsterilizado,
+              esDesparasitado: pet.fichaMedica!.esDesparasitado,
+              tieneVacunas: pet.fichaMedica!.tieneVacunas,
+              pesoKg: pet.fichaMedica!.pesoKg,
+              observaciones: pet.fichaMedica!.observaciones,
+            )
+          : MedicalRecordModel();
+
+      // Preparar imágenes: usamos newGalleryFiles si existen; si no, usar newAvatarFile
+      final List<File> imageFiles = [];
       if (pet.newGalleryFiles != null && pet.newGalleryFiles!.isNotEmpty) {
-        dev.log('[PetRemoteDataSource] Subiendo ${pet.newGalleryFiles!.length} imágenes de galería');
-        for (var file in pet.newGalleryFiles!) {
-          final imageUrl = await _uploadImage(file, 'gallery/$newPetId');
-          await supabaseClient.from('mascota_imagenes').insert({
-            'mascota_id': newPetId,
-            'imagen_url': imageUrl,
-          });
-        }
-        dev.log('[PetRemoteDataSource] Galería subida exitosamente');
+        imageFiles.addAll(pet.newGalleryFiles!);
+      } else if (pet.newAvatarFile != null) {
+        imageFiles.add(pet.newAvatarFile!);
       }
+
+      // Usar flujo directo de inserts que incluye raza/especie/tamaño
+      await createPetComplete(petModel, medicalModel, imageFiles);
 
       dev.log('[PetRemoteDataSource] Creación completa de mascota finalizada exitosamente');
     } catch (e) {
@@ -181,6 +174,9 @@ class PetRemoteDataSource {
         'descripcion': pet.descripcion,
         'edad': pet.edad,
         'sexo': pet.sexo,
+        'tamano': pet.tamano,
+        'especie_id': pet.especieId,
+        'raza_id': pet.razaId,
         // 'fundacion_id': ... (No se actualiza, la mascota no cambia de dueño)
         'avatar_url': avatarPathUrl,
         'updated_at': DateTime.now().toIso8601String(),

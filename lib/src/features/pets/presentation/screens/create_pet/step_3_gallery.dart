@@ -1,17 +1,23 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../../../core/theme/app_theme.dart';
+import '../../../domain/entities/pet_entity.dart';
 import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
-import '../../../domain/entities/pet_entity.dart';
-import '../../../../../core/utils/snackbar_utils.dart';
+import '../../bloc/pet_state.dart';
 
 class Step3Gallery extends StatefulWidget {
-  final VoidCallback onSubmit;
+  final VoidCallback onBack; // Opcional, si quisieras botón atrás
   final PetEntity? petToEdit;
-  
-  const Step3Gallery({super.key, required this.onSubmit, this.petToEdit});
+
+  const Step3Gallery({
+    super.key, 
+    required this.onBack, 
+    this.petToEdit
+  });
 
   @override
   State<Step3Gallery> createState() => _Step3GalleryState();
@@ -19,199 +25,333 @@ class Step3Gallery extends StatefulWidget {
 
 class _Step3GalleryState extends State<Step3Gallery> {
   final ImagePicker _picker = ImagePicker();
-  final List<String> _images = []; // Rutas locales
-  List<String> _existingGalleryUrls = []; // URLs de imágenes ya en internet
+  
+  // Fotos nuevas (Rutas locales)
+  List<String> _selectedImages = [];
+  
+  // Fotos existentes (URLs - Solo para edición)
+  // Nota: Si la API soporta borrar fotos viejas, necesitaríamos lógica extra.
+  // Por ahora mostramos las existentes como "solo lectura" o referencia.
+  List<String> _existingImages = [];
 
   @override
   void initState() {
     super.initState();
-    // Si estamos editando, guardar las URLs existentes
     if (widget.petToEdit != null) {
-      _existingGalleryUrls = List.from(widget.petToEdit!.galleryUrls);
+      // Cargar imágenes existentes si estamos editando
+      _existingImages = widget.petToEdit!.galleryUrls; 
+      // Mostramos las existentes como referencia; nuevas se agregan aparte
     }
   }
 
-  Future<void> _pickImage() async {
-    final List<XFile> pickedFiles = await _picker.pickMultiImage();
-    if (pickedFiles.isNotEmpty) {
-      setState(() {
-        _images.addAll(pickedFiles.map((e) => e.path));
-      });
+  /// Función para seleccionar imágenes de la galería
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        imageQuality: 70, // Optimización básica
+      );
+      if (pickedFiles.isNotEmpty) {
+        setState(() {
+          // Agregamos las nuevas rutas a la lista
+          _selectedImages.addAll(pickedFiles.map((e) => e.path));
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error al seleccionar imágenes")),
+      );
     }
   }
 
   void _removeImage(int index) {
     setState(() {
-      _images.removeAt(index);
+      _selectedImages.removeAt(index);
     });
   }
 
-  void _finish() {
-    // En modo edición, solo enviamos las nuevas imágenes (las existentes se mantienen en el servidor)
-    // En modo creación, podemos requerir al menos una
-    if (widget.petToEdit == null && _images.isEmpty) {
-      showAppSnackBar(
-        context,
-        message: "Debes subir al menos una foto de portada",
-        type: AppSnackBarType.info,
+  void _submit() {
+    if (_selectedImages.isEmpty && _existingImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Debes agregar al menos una foto"),
+          backgroundColor: AppTheme.error,
+        ),
       );
       return;
     }
-    // Guardamos las imágenes nuevas y disparamos el evento final
-    context.read<PetBloc>().add(PetCreateImagesChanged(_images));
-    widget.onSubmit(); // Esto llama al submit final en el Wizard
+
+    // 1. Guardar las imágenes en el Bloc
+    context.read<PetBloc>().add(PetCreateImagesChanged(_selectedImages));
+
+    // 2. Disparar el evento de CREAR o ACTUALIZAR
+    if (widget.petToEdit == null) {
+      context.read<PetBloc>().add(PetSubmitCreation());
+    } else {
+      context.read<PetBloc>().add(PetSubmitUpdate(widget.petToEdit!.id));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasExisting = _existingGalleryUrls.isNotEmpty;
-    
     return SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          Text("Galería de Fotos", style: Theme.of(context).textTheme.headlineSmall),
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Sube fotos de alta calidad. La primera foto será la portada.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-        
-        // Si estamos editando, mostrar imágenes existentes
-        if (hasExisting) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Text("Imágenes actuales:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- ENCABEZADO ---
+            _buildHeader(),
+            const SizedBox(height: 24),
+
+            // --- GRID DE FOTOS ---
+            Text(
+              "Fotos de la Mascota",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppTheme.textPrimary,
               ),
-              itemCount: _existingGalleryUrls.length,
-              itemBuilder: (context, index) {
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(_existingGalleryUrls[index], fit: BoxFit.cover),
-                );
-              },
             ),
-          ),
-          const SizedBox(height: 24),
-          const Divider(),
-          const SizedBox(height: 12),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Text("Agregar nuevas imágenes:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          ),
-        ],
-        
-        // AREA DE BOTÓN DE CARGA
-        GestureDetector(
-          onTap: _pickImage,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            height: 120,
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange, width: 1, style: BorderStyle.solid),
+            const SizedBox(height: 8),
+            Text(
+              "Agrega fotos claras. La primera foto será la portada.",
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 14,
+              ),
             ),
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_a_photo, size: 40, color: Colors.orange),
-                  SizedBox(height: 8),
-                  Text("Toca para agregar fotos", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))
-                ],
+            const SizedBox(height: 16),
+
+            _buildImageGrid(),
+
+            const SizedBox(height: 40),
+
+            // --- BOTÓN FINALIZAR ---
+            _buildSubmitButton(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryOrange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.photo_library_rounded, color: AppTheme.primaryOrange, size: 32),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Galería", 
+                style: AppTheme.lightTheme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Paso 3 de 3",
+                style: AppTheme.lightTheme.textTheme.bodySmall?.copyWith(
+                  color: AppTheme.primaryOrange,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageGrid() {
+    // Calculamos items: Botón agregar + imágenes nuevas + imágenes existentes (solo lectura)
+    final totalItems = 1 + _selectedImages.length + _existingImages.length; 
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3, // 3 columnas
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1, // Cuadrados
+      ),
+      itemCount: totalItems,
+      itemBuilder: (context, index) {
+        // Primer item: botón Agregar
+        if (index == 0) return _buildAddButton();
+
+        // A continuación: imágenes existentes (URLs)
+        if (index <= _existingImages.length) {
+          final url = _existingImages[index - 1];
+          return _buildExistingImageCard(url);
+        }
+
+        // Finalmente: imágenes nuevas (rutas locales)
+        final localIndex = index - 1 - _existingImages.length;
+        final imagePath = _selectedImages[localIndex];
+        return _buildImageCard(imagePath, localIndex);
+      },
+    );
+  }
+
+  /// Botón cuadrado con borde punteado para agregar fotos
+  Widget _buildAddButton() {
+    return GestureDetector(
+      onTap: _pickImages,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppTheme.primaryOrange.withOpacity(0.5),
+            width: 1.5,
+            style: BorderStyle.solid, // Flutter no tiene 'dashed' nativo simple en Border.all, usamos sólido suave
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_a_photo_rounded, color: AppTheme.primaryOrange, size: 28),
+            const SizedBox(height: 4),
+            Text(
+              "Agregar",
+              style: TextStyle(
+                color: AppTheme.primaryOrange,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tarjeta de foto individual con botón de borrar
+  Widget _buildImageCard(String path, int index) {
+    return Stack(
+      children: [
+        // Imagen
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            image: DecorationImage(
+              image: FileImage(File(path)),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        // Botón Borrar (X)
+        Positioned(
+          top: 4,
+          right: 4,
+          child: GestureDetector(
+            onTap: () => _removeImage(index),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 14,
               ),
             ),
           ),
         ),
-
-        const SizedBox(height: 24),
-
-        // GRILLA DE FOTOS NUEVAS
-        _images.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                child: Text("No has seleccionado fotos aún", style: TextStyle(color: Colors.grey[400])),
-              )
-            : Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  itemCount: _images.length,
-                  itemBuilder: (context, index) {
-                    return Stack(
-                      children: [
-                        Positioned.fill(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(File(_images[index]), fit: BoxFit.cover),
-                          ),
-                        ),
-                        Positioned(
-                          right: 4,
-                          top: 4,
-                          child: GestureDetector(
-                            onTap: () => _removeImage(index),
-                            child: const CircleAvatar(
-                              radius: 12,
-                              backgroundColor: Colors.red,
-                              child: Icon(Icons.close, size: 16, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                        if (index == 0 && !hasExisting)
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              color: Colors.black54,
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: const Text("Portada", 
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white, fontSize: 10),
-                              ),
-                            ),
-                          )
-                      ],
-                    );
-                  },
+        // Etiqueta "Portada" para la primera foto
+        if (index == 0)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryOrange.withOpacity(0.8),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
                 ),
               ),
-
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: FilledButton(
-              onPressed: _finish,
-              child: const Text("PUBLICAR MASCOTA"),
+              child: const Text(
+                "Portada",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
-        )
+      ],
+    );
+  }
+
+  /// Tarjeta para imagen existente (solo lectura)
+  Widget _buildExistingImageCard(String url) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        image: DecorationImage(
+          image: NetworkImage(url),
+          fit: BoxFit.cover,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return BlocBuilder<PetBloc, PetState>(
+      builder: (context, state) {
+        final isLoading = state.actionStatus == PetActionStatus.loading;
+
+        return SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: FilledButton.icon(
+            onPressed: isLoading ? null : _submit,
+            icon: isLoading 
+                ? const SizedBox(
+                    width: 20, height: 20, 
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                  )
+                : const Icon(Icons.check_circle_rounded, size: 22),
+            label: Text(
+              isLoading ? "Publicando..." : (widget.petToEdit == null ? "Publicar Mascota" : "Guardar Cambios"),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.primaryOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 4,
+              disabledBackgroundColor: AppTheme.primaryOrange.withOpacity(0.6),
+            ),
+          ),
+        );
+      },
     );
   }
 }

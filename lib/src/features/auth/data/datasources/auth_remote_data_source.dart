@@ -254,9 +254,51 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<UserModel?> getCurrentUser() async {
-    final user = supabaseClient.auth.currentUser;
-    if (user == null) return null;
-    return await _getUserWithRole(user.id, user.email ?? '');
+    try {
+      final session = supabaseClient.auth.currentSession;
+      if (session == null) return null;
+
+      final userId = session.user.id;
+      final email = session.user.email ?? '';
+
+      // 1. Verificar si es Fundación
+      final foundationData = await supabaseClient
+          .from('fundaciones')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (foundationData != null) {
+        return UserModel(
+          id: userId,
+          email: email,
+          type: 'fundacion',
+        );
+      }
+
+      // 2. Verificar si es Adoptante
+      final adopterData = await supabaseClient
+          .from('adoptantes')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (adopterData != null) {
+        return UserModel(
+          id: userId,
+          email: email,
+          type: 'adoptante',
+        );
+      }
+
+      // 3. Si no está en ninguna tabla, retornamos usuario con tipo 'unknown'
+      LoggerService.warning('Usuario sin tipo definido: $userId', context: 'getCurrentUser');
+      return UserModel(id: userId, email: email, type: 'unknown');
+      
+    } catch (e) {
+      LoggerService.error('Error al obtener usuario actual', context: 'getCurrentUser', error: e);
+      return null;
+    }
   }
 
   @override
@@ -297,50 +339,5 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception('La contraseña debe tener al menos 8 caracteres.');
     }
     throw Exception(msg.replaceAll('Exception:', '').trim());
-  }
-
-  /// Verifica Email y Cédula (para Adoptantes)
-  Future<void> _validateAdoptanteRegistration(String email, String cedula) async {
-    // 1. Validar Email
-    await _validateEmail(email);
-
-    // 2. Validar Cédula
-    try {
-      final bool exists = await supabaseClient.rpc(
-        'check_cedula_exists', 
-        params: {'cedula_to_check': cedula},
-      );
-      if (exists) throw Exception('Este número de cédula ya está registrado.');
-    } catch (e) {
-      if (e.toString().contains('cédula ya está registrado')) rethrow;
-      LoggerService.warning('Error RPC Cédula: $e', context: 'Auth');
-    }
-  }
-
-  /// Verifica Email (para Fundaciones)
-  Future<void> _validateFundacionRegistration(String email) async {
-    // 1. Validar Email
-    await _validateEmail(email);
-  }
-
-  /// Lógica centralizada de validación de Email
-  Future<void> _validateEmail(String email) async {
-    // A. Formato
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(email)) {
-      throw Exception('El formato del correo electrónico no es válido.');
-    }
-
-    // B. Unicidad (Usando RPC)
-    try {
-      final bool exists = await supabaseClient.rpc(
-        'check_email_exists', 
-        params: {'email_to_check': email},
-      );
-      if (exists) throw Exception('Este correo electrónico ya está registrado.');
-    } catch (e) {
-      if (e.toString().contains('correo electrónico ya está registrado')) rethrow;
-      LoggerService.warning('Error RPC Email: $e', context: 'Auth');
-    }
   }
 }

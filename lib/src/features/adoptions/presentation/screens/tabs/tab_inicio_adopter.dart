@@ -149,17 +149,17 @@ class _TabInicioAdopterState extends State<TabInicioAdopter> {
             // 4. Lista de Mascotas
             BlocBuilder<PetBloc, PetState>(
               builder: (context, state) {
-                if (state is PetsLoading) {
+                if (state.status == PetStatus.loading) {
                   return const SliverFillRemaining(
                     hasScrollBody: false,
                     child: Center(child: CircularProgressIndicator()),
                   );
-                } else if (state is PetsError) {
+                } else if (state.status == PetStatus.error) {
                   return SliverFillRemaining(
                     hasScrollBody: false,
-                    child: Center(child: Text(state.message)),
+                    child: Center(child: Text(state.errorMessage ?? 'Error desconocido')),
                   );
-                } else if (state is PetsLoaded) {
+                } else if (state.status == PetStatus.success && state.pets.isNotEmpty) {
                   // Filtrar por texto de búsqueda
                   final filteredPets = state.pets.where((pet) {
                     final matchesSearch = pet.nombre

@@ -1,8 +1,7 @@
-import 'dart:developer';
 import 'dart:io';
-
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/logger_service.dart';
+import '../../../auth/domain/usecases/check_auth_status_usecase.dart';
 import '../../domain/entities/pet_entity.dart';
 import '../../domain/entities/medical_record_entity.dart';
 import '../../domain/usecases/create_pet_usecase.dart';
@@ -10,18 +9,20 @@ import '../../domain/usecases/delete_pet_usecase.dart';
 import '../../domain/usecases/get_pets_usecase.dart';
 import '../../domain/usecases/get_all_available_pets_usecase.dart';
 import '../../domain/usecases/update_pet_usecase.dart';
+import '../../domain/usecases/get_catalogs_usecase.dart';
 import 'pet_event.dart';
 import 'pet_state.dart';
 
 class PetBloc extends Bloc<PetEvent, PetState> {
-  // Inyectamos los casos de uso en lugar del repositorio directo
   final GetPetsUseCase getPetsUseCase;
   final GetAllAvailablePetsUseCase getAllAvailablePetsUseCase;
   final CreatePetUseCase createPetUseCase;
   final DeletePetUseCase deletePetUseCase;
   final UpdatePetUseCase updatePetUseCase;
+  final CheckAuthStatusUseCase checkAuthStatusUseCase;
+  final GetCatalogsUseCase getCatalogsUseCase;
 
-  // --- VARIABLES TEMPORALES DEL WIZARD ---
+  // Variables temporales del Wizard (se mantienen igual)
   PetCreateStep1Changed? _step1Data;
   PetCreateStep2Changed? _step2Data;
   List<String> _step3Images = [];
@@ -32,111 +33,116 @@ class PetBloc extends Bloc<PetEvent, PetState> {
     required this.createPetUseCase,
     required this.deletePetUseCase,
     required this.updatePetUseCase,
-  }) : super(PetsInitial()) {
+    required this.checkAuthStatusUseCase,
+    required this.getCatalogsUseCase,
+  }) : super(const PetState()) {
     
+    // 1. CARGAR LISTA DE MASCOTAS
     on<LoadPets>((event, emit) async {
-      print('[PetBloc] LoadPets event recibido con fundacionId: ${event.fundacionId}');
-      emit(PetsLoading());
+      emit(state.copyWith(status: PetStatus.loading));
       try {
-        // Usamos el caso de uso
-        print('[PetBloc] Llamando a getPetsUseCase...');
         final pets = await getPetsUseCase(event.fundacionId);
-        print('[PetBloc] getPetsUseCase completado. Mascotas obtenidas: ${pets.length}');
-        emit(PetsLoaded(pets));
+        // Emitimos primero las mascotas para que la UI responda rápido
+        emit(state.copyWith(status: PetStatus.success, pets: pets));
+
+        // Luego, precargamos catálogos necesarios para resolver nombres
+        try {
+          final species = await getCatalogsUseCase.getSpecies();
+          // Identificar especies presentes y cargar sus razas
+          final speciesIds = pets
+              .map((p) => p.especieId)
+              .whereType<int>()
+              .toSet()
+              .toList();
+
+          final breedsLists = await Future.wait(
+            speciesIds.map((id) => getCatalogsUseCase.getBreeds(id)),
+          );
+          final allBreeds = breedsLists.expand((list) => list).toList();
+
+          emit(state.copyWith(species: species, breeds: allBreeds));
+        } catch (e) {
+          LoggerService.error('Error precargando catálogos tras LoadPets', context: 'PetBloc', error: e);
+        }
       } catch (e) {
-        print('[PetBloc] ERROR en LoadPets: $e');
-        emit(PetsError(e.toString()));
+        emit(state.copyWith(
+          status: PetStatus.error, 
+          errorMessage: e.toString()
+        ));
       }
     });
 
+    // 2. CARGAR FEED (ADOPTANTES)
     on<LoadAllAvailablePets>((event, emit) async {
-      print('[PetBloc] LoadAllAvailablePets event recibido');
-      emit(PetsLoading());
+      emit(state.copyWith(status: PetStatus.loading));
       try {
-        print('[PetBloc] Llamando a getAllAvailablePetsUseCase...');
         final pets = await getAllAvailablePetsUseCase();
-        print('[PetBloc] getAllAvailablePetsUseCase completado. Mascotas disponibles: ${pets.length}');
-        emit(PetsLoaded(pets));
+        // Emitimos primero las mascotas
+        emit(state.copyWith(status: PetStatus.success, pets: pets));
+
+        // Precargar catálogos para mapping de especie/raza
+        try {
+          final species = await getCatalogsUseCase.getSpecies();
+          final speciesIds = pets
+              .map((p) => p.especieId)
+              .whereType<int>()
+              .toSet()
+              .toList();
+
+          final breedsLists = await Future.wait(
+            speciesIds.map((id) => getCatalogsUseCase.getBreeds(id)),
+          );
+          final allBreeds = breedsLists.expand((list) => list).toList();
+
+          emit(state.copyWith(species: species, breeds: allBreeds));
+        } catch (e) {
+          LoggerService.error('Error precargando catálogos tras LoadAllAvailablePets', context: 'PetBloc', error: e);
+        }
       } catch (e) {
-        print('[PetBloc] ERROR en LoadAllAvailablePets: $e');
-        emit(PetsError(e.toString()));
+        emit(state.copyWith(status: PetStatus.error, errorMessage: e.toString()));
       }
     });
 
-    on<AddPet>((event, emit) async {
+    // 3. CARGAR CATÁLOGOS (Sin borrar mascotas)
+    on<LoadCatalogs>((event, emit) async {
+      // No cambiamos el status global a loading para no bloquear la lista
       try {
-        log('[PetBloc] Creando mascota ${event.pet.nombre}');
-        emit(PetsLoading());
-        await createPetUseCase(event.pet);
-        log('[PetBloc] Mascota creada, recargando lista');
-        add(LoadPets(event.pet.fundacionId));
+        final results = await Future.wait([
+          getCatalogsUseCase.getSpecies(),
+          getCatalogsUseCase.getQualities(),
+        ]);
+        emit(state.copyWith(
+          species: results[0],
+          qualities: results[1],
+        ));
       } catch (e) {
-        log('[PetBloc] Error al crear: $e');
-        emit(PetsError(e.toString()));
+        LoggerService.error('Error cargando catálogos', context: 'PetBloc', error: e);
+        // Opcional: mostrar error silencioso o en snackbar
       }
     });
 
-    on<DeletePetEvent>((event, emit) async {
+    // 4. CARGAR RAZAS
+    on<LoadBreeds>((event, emit) async {
       try {
-        log('[PetBloc] Eliminando mascota ${event.petId}');
-        await deletePetUseCase(event.petId);
-        log('[PetBloc] Mascota eliminada, recargando lista');
-        add(LoadPets(event.fundacionId));
+        final breeds = await getCatalogsUseCase.getBreeds(event.speciesId);
+        emit(state.copyWith(breeds: breeds));
       } catch (e) {
-        log('[PetBloc] Error al eliminar: $e', error: e, stackTrace: StackTrace.current);
-        emit(PetsError("No se pudo eliminar: ${e.toString()}"));
+        LoggerService.error('Error cargando razas', context: 'PetBloc', error: e);
       }
     });
 
-    on<UpdatePetEvent>((event, emit) async {
-      try {
-        log('[PetBloc] Actualizando mascota ${event.pet.id}');
-        emit(PetsLoading());
-        await updatePetUseCase(event.pet);
-        // Recargar la lista para ver los cambios
-        log('[PetBloc] Mascota actualizada, recargando lista');
-        add(LoadPets(event.pet.fundacionId));
-      } catch (e) {
-        log('[PetBloc] Error al actualizar: $e');
-        emit(PetsError(e.toString()));
-      }
-    });
-    
-    // --- HANDLERS PARA EL WIZARD ---
-    // Paso 1: Info general
-    on<PetCreateStep1Changed>((event, emit) {
-      _step1Data = event;
-      log('[PetBloc] Paso 1 guardado: nombre=${event.nombre}, sexo=${event.sexo}, tamaño=${event.tamano}');
-    });
-
-    // Paso 2: Info médica
-    on<PetCreateStep2Changed>((event, emit) {
-      _step2Data = event;
-      log('[PetBloc] Paso 2 guardado: esterilizado=${event.esEsterilizado}, desparasitado=${event.esDesparasitado}, vacunas=${event.vacunasAlDia}');
-    });
-
-    // Paso 3: Imágenes
-    on<PetCreateImagesChanged>((event, emit) {
-      _step3Images = event.imagePaths;
-      log('[PetBloc] Paso 3 guardado: ${_step3Images.length} imágenes');
-    });
-
-    // Submit final: crear mascota completa
+    // 5. SUBMIT CREACIÓN (Usamos actionStatus)
     on<PetSubmitCreation>((event, emit) async {
-      log('[PetBloc] Iniciando creación completa de mascota...');
-
-      if (_step1Data == null) {
-        emit(PetsError('Faltan datos del paso 1'));
-        return;
-      }
-
-      emit(PetsLoading());
-
+      emit(state.copyWith(actionStatus: PetActionStatus.loading));
+      
       try {
-        final userId = Supabase.instance.client.auth.currentUser?.id;
-        if (userId == null) throw Exception('Usuario no autenticado');
+        // ... Lógica de validación previa ...
+        if (_step1Data == null) throw Exception("Faltan datos del paso 1");
 
-        // Construir ficha médica si existe paso 2
+        final currentUser = await checkAuthStatusUseCase();
+        if (currentUser == null) throw Exception('Usuario no autenticado');
+
+        // ... Construcción de la entidad (Igual que antes) ...
         final MedicalRecordEntity? medicalRecord = _step2Data != null
             ? MedicalRecordEntity(
                 esEsterilizado: _step2Data!.esEsterilizado,
@@ -148,11 +154,9 @@ class PetBloc extends Bloc<PetEvent, PetState> {
               )
             : null;
 
-        // Convertir rutas a archivos
         final List<File> galleryFiles = _step3Images.map((p) => File(p)).toList();
         final File? avatarFile = galleryFiles.isNotEmpty ? galleryFiles.first : null;
 
-        // Construir entidad de mascota para el caso de uso
         final newPet = PetEntity(
           id: '',
           nombre: _step1Data!.nombre,
@@ -161,39 +165,50 @@ class PetBloc extends Bloc<PetEvent, PetState> {
           sexo: _step1Data!.sexo,
           tamano: _step1Data!.tamano,
           status: 'disponible',
-          fundacionId: userId,
+          fundacionId: currentUser.id,
           newAvatarFile: avatarFile,
           newGalleryFiles: galleryFiles,
           fichaMedica: medicalRecord,
+          razaId: _step1Data!.razaId,
+          especieId: _step1Data!.especieId,
         );
 
         await createPetUseCase(newPet);
-        log('[PetBloc] Mascota creada exitosamente. Recargando lista...');
+        
+        _clearWizardData();
+        
+        // Éxito en la acción + Recarga de lista
+        // Primero emitimos éxito de acción
+        emit(state.copyWith(
+          actionStatus: PetActionStatus.success, 
+          actionMessage: "Mascota creada correctamente"
+        ));
+        
+        // Luego recargamos la lista (pondrá status global en loading si queremos, o silencioso)
+        add(LoadPets(currentUser.id));
+        
+        // Reseteamos el estado de acción después de un momento
+        await Future.delayed(Duration.zero);
+        emit(state.copyWith(actionStatus: PetActionStatus.idle));
 
-        // Limpiar borradores del wizard
-        _step1Data = null;
-        _step2Data = null;
-        _step3Images = [];
-
-        add(LoadPets(userId));
-      } catch (e, stack) {
-        log('[PetBloc] Error creando mascota: $e', stackTrace: stack);
-        emit(PetsError('Error creando mascota: $e'));
+      } catch (e) {
+        emit(state.copyWith(
+          actionStatus: PetActionStatus.error, 
+          actionMessage: e.toString()
+        ));
       }
     });
 
-    // Handler para ACTUALIZAR
+    // 5b. SUBMIT ACTUALIZACIÓN
     on<PetSubmitUpdate>((event, emit) async {
-      log('[PetBloc] Iniciando actualización de mascota ${event.petId}...');
-
-      emit(PetsLoading());
-
+      emit(state.copyWith(actionStatus: PetActionStatus.loading));
       try {
-        final userId = Supabase.instance.client.auth.currentUser?.id;
-        if (userId == null) throw Exception("Usuario no autenticado");
+        if (_step1Data == null) throw Exception('Faltan datos del paso 1');
 
-        // 1. Construir Ficha Médica
-        final medicalRecord = _step2Data != null
+        final currentUser = await checkAuthStatusUseCase();
+        if (currentUser == null) throw Exception('Usuario no autenticado');
+
+        final MedicalRecordEntity? medicalRecord = _step2Data != null
             ? MedicalRecordEntity(
                 esEsterilizado: _step2Data!.esEsterilizado,
                 esDesparasitado: _step2Data!.esDesparasitado,
@@ -204,39 +219,67 @@ class PetBloc extends Bloc<PetEvent, PetState> {
               )
             : null;
 
-        // 2. Archivos Nuevos (Solo los que son rutas locales)
-        final newGalleryFiles = _step3Images.map((path) => File(path)).toList();
+        final List<File> galleryFiles = _step3Images.map((p) => File(p)).toList();
+        final File? avatarFile = galleryFiles.isNotEmpty ? galleryFiles.first : null;
 
-        // 3. Entidad para Actualizar
         final updatedPet = PetEntity(
-          id: event.petId, // ID IMPORTANTE
-          nombre: _step1Data?.nombre ?? '',
-          descripcion: _step1Data?.descripcion,
-          edad: _step1Data?.edad,
-          sexo: _step1Data?.sexo ?? 'macho',
-          tamano: _step1Data?.tamano,
+          id: event.petId,
+          nombre: _step1Data!.nombre,
+          descripcion: _step1Data!.descripcion,
+          edad: _step1Data!.edad,
+          sexo: _step1Data!.sexo,
+          tamano: _step1Data!.tamano,
           status: 'disponible',
-          fundacionId: userId,
-          newAvatarFile: null,
-          newGalleryFiles: newGalleryFiles,
+          fundacionId: currentUser.id,
+          newAvatarFile: avatarFile,
+          newGalleryFiles: galleryFiles,
           fichaMedica: medicalRecord,
+          razaId: _step1Data!.razaId,
+          especieId: _step1Data!.especieId,
         );
 
-        // 4. Llamar al Caso de Uso UPDATE
         await updatePetUseCase(updatedPet);
 
-        log('[PetBloc] Mascota actualizada. Recargando lista.');
+        _clearWizardData();
 
-        // Limpiar temporales
-        _step1Data = null;
-        _step2Data = null;
-        _step3Images = [];
+        emit(state.copyWith(
+          actionStatus: PetActionStatus.success,
+          actionMessage: 'Mascota actualizada correctamente',
+        ));
 
-        add(LoadPets(userId));
-      } catch (e, stack) {
-        log('[PetBloc] Error actualizando: $e', stackTrace: stack);
-        emit(PetsError("Error actualizando: $e"));
+        // Recargar lista tras actualizar
+        add(LoadPets(currentUser.id));
+
+        await Future.delayed(Duration.zero);
+        emit(state.copyWith(actionStatus: PetActionStatus.idle));
+      } catch (e) {
+        emit(state.copyWith(
+          actionStatus: PetActionStatus.error,
+          actionMessage: e.toString(),
+        ));
       }
     });
+
+    // 6. DELETE (Acción puntual)
+    on<DeletePetEvent>((event, emit) async {
+      // Podríamos usar actionStatus aquí también
+      try {
+        await deletePetUseCase(event.petId);
+        add(LoadPets(event.fundacionId));
+      } catch (e) {
+        emit(state.copyWith(errorMessage: "No se pudo eliminar: $e"));
+      }
+    });
+
+    // ... Handlers de Steps del Wizard (Igual que antes) ...
+    on<PetCreateStep1Changed>((event, emit) => _step1Data = event);
+    on<PetCreateStep2Changed>((event, emit) => _step2Data = event);
+    on<PetCreateImagesChanged>((event, emit) => _step3Images = event.imagePaths);
+  }
+
+  void _clearWizardData() {
+    _step1Data = null;
+    _step2Data = null;
+    _step3Images = [];
   }
 }

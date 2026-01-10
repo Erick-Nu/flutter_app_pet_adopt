@@ -11,6 +11,8 @@ class PetEntity {
   final String? avatarUrl;
   final String fundacionId;
   final String? tamano;
+  final int? razaId;      // ID de la raza (catálogo)
+  final int? especieId;   // ID de la especie (catálogo)
   // URLs públicas de la galería de imágenes asociadas
   final List<String> galleryUrls;
   
@@ -29,6 +31,8 @@ class PetEntity {
     this.avatarUrl,
     required this.fundacionId,
     this.tamano,
+    this.razaId,
+    this.especieId,
     this.galleryUrls = const [],
     this.newAvatarFile,
     this.newGalleryFiles,

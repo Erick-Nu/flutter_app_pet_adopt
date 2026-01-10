@@ -1,11 +1,10 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:equatable/equatable.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
-import '../../domain/entities/user_entity.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/register_adoptante_usecase.dart';
 import '../../domain/usecases/register_fundacion_usecase.dart';
 import '../../domain/usecases/recover_password_usecase.dart';
+import '../../domain/usecases/check_auth_status_usecase.dart';
 import '../../../../core/services/logger_service.dart';
 
 import 'auth_event.dart';
@@ -16,65 +15,39 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final RegisterAdoptanteUseCase registerAdoptanteUseCase;
   final RegisterFundacionUseCase registerFundacionUseCase;
   final RecoverPasswordUseCase recoverPasswordUseCase;
+  final CheckAuthStatusUseCase checkAuthStatusUseCase;
 
   AuthBloc({
     required this.loginUseCase,
     required this.registerAdoptanteUseCase,
     required this.registerFundacionUseCase,
     required this.recoverPasswordUseCase,
+    required this.checkAuthStatusUseCase,
   }) : super(AuthInitial()) {
     
     // 1. Login
     on<AuthLoginRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        final user = await loginUseCase(event.email, event.password);
+        LoggerService.auth('Ejecutando LoginUseCase', data: {'email': event.email});
         
-        // Verificar el rol del usuario en la BD
-        final userId = Supabase.instance.client.auth.currentUser?.id;
-        if (userId != null) {
-          // A) Buscar en Fundaciones
-          final fundacionData = await Supabase.instance.client
-              .from('fundaciones')
-              .select()
-              .eq('id', userId)
-              .maybeSingle();
-
-          if (fundacionData != null) {
-            final userWithType = UserEntity(
-              id: user.id,
-              email: user.email,
-              type: 'fundacion',
-            );
-            emit(AuthAuthenticated(userWithType));
-            return;
-          }
-
-          // B) Buscar en Adoptantes
-          final adoptanteData = await Supabase.instance.client
-              .from('adoptantes')
-              .select()
-              .eq('id', userId)
-              .maybeSingle();
-
-          if (adoptanteData != null) {
-            final userWithType = UserEntity(
-              id: user.id,
-              email: user.email,
-              type: 'adoptante',
-            );
-            emit(AuthAuthenticated(userWithType));
-            return;
-          }
-
-          // Si no aparece en ninguna tabla
-          emit(AuthError('Usuario no tiene perfil asignado.'));
-          emit(AuthUnauthenticated());
-          return;
+        // Primero hacemos el login (auth.signInWithPassword)
+        await loginUseCase(event.email, event.password);
+        
+        // DESPUÉS: Usamos el caso de uso para obtener el rol correcto
+        // Esto asegura que AuthAuthenticated siempre tenga el 'type' correcto
+        final userWithRole = await checkAuthStatusUseCase();
+        
+        if (userWithRole != null) {
+          LoggerService.success('Login exitoso con rol: ${userWithRole.type}', context: 'AuthBloc');
+          emit(AuthAuthenticated(userWithRole));
+        } else {
+          // Caso raro: login exitoso pero falla al obtener datos
+          LoggerService.error('Error al obtener perfil de usuario', context: 'AuthBloc');
+          emit(AuthError("Error al obtener perfil de usuario"));
         }
-        
-        emit(AuthAuthenticated(user));
       } catch (e) {
+        LoggerService.error('Error en login', context: 'AuthBloc', error: e);
         emit(AuthError(e.toString()));
       }
     });
@@ -119,45 +92,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthCheckStatus>((event, emit) async {
       emit(AuthLoading());
       try {
-        final session = Supabase.instance.client.auth.currentSession;
+        LoggerService.auth('Verificando estado de autenticación', data: {});
+        
+        // Toda la lógica sucia de Supabase.instance... SE BORRA.
+        // Ahora es una sola línea limpia:
+        final user = await checkAuthStatusUseCase();
 
-        if (session != null) {
-          final userId = session.user.id;
-          final email = session.user.email;
-
-          LoggerService.auth('Verificando sesión', data: {'userId': userId});
-
-          // 1. Intentar buscar en tabla fundaciones
-          final foundationData = await Supabase.instance.client
-              .from('fundaciones')
-              .select()
-              .eq('id', userId)
-              .maybeSingle();
-
-          if (foundationData != null) {
-            LoggerService.success('Usuario identificado como Fundación', context: 'AuthCheckStatus');
-            final user = UserEntity(id: userId, email: email ?? '', type: 'fundacion');
-            emit(AuthAuthenticated(user));
-            return;
-          }
-
-          // 2. Intentar buscar en tabla adoptantes
-          final adopterData = await Supabase.instance.client
-              .from('adoptantes')
-              .select()
-              .eq('id', userId)
-              .maybeSingle();
-
-          if (adopterData != null) {
-            LoggerService.success('Usuario identificado como Adoptante', context: 'AuthCheckStatus');
-            final user = UserEntity(id: userId, email: email ?? '', type: 'adoptante');
-            emit(AuthAuthenticated(user));
-            return;
-          }
-
-          // Si no está en ninguno (raro), logout
-          LoggerService.warning('Usuario sin tipo definido', context: 'AuthCheckStatus');
-          emit(AuthUnauthenticated());
+        if (user != null) {
+          LoggerService.success('Usuario autenticado: ${user.type}', context: 'AuthCheckStatus');
+          emit(AuthAuthenticated(user));
         } else {
           LoggerService.info('Sin sesión activa', context: 'AuthCheckStatus');
           emit(AuthUnauthenticated());

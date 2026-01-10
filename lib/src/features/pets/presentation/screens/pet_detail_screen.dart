@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-// Asegúrate de que las rutas sean correctas según tu proyecto
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/services/pdf_generator_service.dart';
 import '../../../../core/utils/snackbar_utils.dart';
@@ -27,6 +26,13 @@ class PetDetailScreen extends StatefulWidget {
 class _PetDetailScreenState extends State<PetDetailScreen> {
   int _currentImageIndex = 0;
   bool _isGeneratingPdf = false;
+  final PageController _pageController = PageController();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   void _generatePdf() async {
     setState(() => _isGeneratingPdf = true);
@@ -44,69 +50,99 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     }
   }
 
+  void _onEdit() {
+    final petBloc = context.read<PetBloc>();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: petBloc,
+          child: PetCreationWizard(petToEdit: widget.pet),
+        ),
+      ),
+    );
+  }
+
+  void _openFullScreenGallery(List<String> images, int initialIndex) {
+    if (images.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            PageView.builder(
+              itemCount: images.length,
+              controller: PageController(initialPage: initialIndex),
+              itemBuilder: (ctx, idx) {
+                return InteractiveViewer(
+                  child: Image.network(
+                    images[idx], 
+                    fit: BoxFit.contain,
+                    errorBuilder: (_,__,___) => const Icon(Icons.broken_image, color: Colors.grey),
+                  ),
+                );
+              },
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Colores auxiliares para el tema médico
-    final medicalColor = Colors.teal.shade700;
-    final medicalBg = Colors.teal.shade50;
     final pet = widget.pet;
+    
+    // --- 1. LÓGICA PARA EVITAR DUPLICADOS ---
+    final Set<String> uniqueImages = {};
+    
+    // Agregar portada
+    if (pet.avatarUrl != null && pet.avatarUrl!.isNotEmpty) {
+      uniqueImages.add(pet.avatarUrl!);
+    }
+    // Agregar galería (el Set filtrará automáticamente si la URL es idéntica)
+    uniqueImages.addAll(pet.galleryUrls);
+    
+    final List<String> allImages = uniqueImages.toList();
+    // ----------------------------------------
 
-    // Imágenes para carrusel: usar gallery si existe, sino avatar
-    final images = pet.galleryUrls.isNotEmpty
-        ? pet.galleryUrls
-        : (pet.avatarUrl != null && pet.avatarUrl!.isNotEmpty
-            ? [pet.avatarUrl!]
-            : <String>[]);
+    // Galería Grid (excluyendo la primera imagen si hay más de una, para variedad)
+    final List<String> galleryImages = allImages.length > 1 ? allImages.sublist(1) : [];
 
-    return BlocListener<PetBloc, PetState>(
-      listener: (context, state) {
-        if (state is PetsLoaded) {
-          if (mounted) Navigator.pop(context);
-        }
-      },
-      child: Scaffold(
-        backgroundColor: Colors.grey.shade50,
+    return Scaffold(
+        backgroundColor: AppTheme.background,
         body: CustomScrollView(
           slivers: [
-            // 1. APP BAR CON CARRUSEL
+            // --- HEADER CARRUSEL ---
             SliverAppBar(
-              expandedHeight: 350,
+              expandedHeight: 380,
               pinned: true,
               backgroundColor: AppTheme.primaryOrange,
               iconTheme: const IconThemeData(color: Colors.white),
-              title: Text(
-                pet.nombre,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  shadows: [Shadow(color: Colors.black45, blurRadius: 5)],
-                ),
-              ),
               actions: widget.isAdopterView
-                  ? [] // No mostrar acciones para adoptantes
+                  ? []
                   : [
-                      // Botón Editar (solo para fundaciones)
                       Container(
                         margin: const EdgeInsets.only(right: 16),
                         decoration: BoxDecoration(
-                          color: Colors.black26,
+                          color: Colors.black.withOpacity(0.3),
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.white),
-                          onPressed: () {
-                            // Navegar al Wizard en modo edición
-                            final petBloc = context.read<PetBloc>();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => BlocProvider.value(
-                                  value: petBloc,
-                                  child: PetCreationWizard(petToEdit: widget.pet),
-                                ),
-                              ),
-                            );
-                          },
+                          icon: const Icon(Icons.edit_rounded, color: Colors.white),
+                          onPressed: _onEdit,
+                          tooltip: 'Editar',
                         ),
                       ),
                     ],
@@ -114,55 +150,88 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    images.isEmpty
+                    // A. CARRUSEL (FONDO)
+                    allImages.isEmpty
                         ? Container(
                             color: Colors.grey.shade300,
                             child: const Icon(Icons.pets, size: 80, color: Colors.white),
                           )
                         : PageView.builder(
-                            itemCount: images.length,
+                            controller: _pageController,
+                            itemCount: allImages.length,
+                            // physics: const BouncingScrollPhysics(), // Scroll suave
                             onPageChanged: (i) => setState(() => _currentImageIndex = i),
-                            itemBuilder: (_, idx) => Image.network(images[idx], fit: BoxFit.cover),
+                            itemBuilder: (_, idx) {
+                              return GestureDetector(
+                                onTap: () => _openFullScreenGallery(allImages, idx),
+                                child: Image.network(
+                                  allImages[idx], 
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (ctx, err, stack) => Container(
+                                    color: Colors.grey.shade200,
+                                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
 
-                    // Degradado superior (no bloquear gestos del carrusel)
-                    IgnorePointer(
-                      ignoring: true,
-                      child: const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.center,
-                            colors: [Colors.black54, Colors.transparent],
+                    // B. DEGRADADO SUPERIOR (Solo arriba, no cubre el centro)
+                    Positioned(
+                      top: 0, left: 0, right: 0,
+                      height: 100, // Altura limitada
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.black54, Colors.transparent],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // C. DEGRADADO INFERIOR (Solo abajo)
+                    Positioned(
+                      bottom: 0, left: 0, right: 0,
+                      height: 80, // Altura limitada
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [AppTheme.background, Colors.transparent],
+                            ),
                           ),
                         ),
                       ),
                     ),
 
-                    // Indicador de páginas
-                    if (images.length > 1)
+                    // D. INDICADORES (Puntos)
+                    if (allImages.length > 1)
                       Positioned(
                         bottom: 40,
                         left: 0,
                         right: 0,
-                        child: IgnorePointer(
-                          ignoring: true,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: images.asMap().entries.map((entry) {
-                              return Container(
-                                width: 8,
-                                height: 8,
-                                margin: const EdgeInsets.symmetric(horizontal: 4),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _currentImageIndex == entry.key
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.4),
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: allImages.asMap().entries.map((entry) {
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: _currentImageIndex == entry.key ? 24 : 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(4),
+                                color: _currentImageIndex == entry.key
+                                    ? AppTheme.primaryOrange
+                                    : Colors.white.withOpacity(0.8),
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
                   ],
@@ -170,380 +239,469 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               ),
             ),
 
-            // 2. CONTENIDO PRINCIPAL
+            // --- CONTENIDO DEL CUERPO ---
             SliverToBoxAdapter(
-              child: Transform.translate(
-                offset: const Offset(0, -20), // Efecto de solapamiento
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                  ),
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ENCABEZADO CON PROTECCIÓN DE ESPACIO
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.pet.nombre,
-                              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.black87,
-                                  ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          _buildStatusBadge(widget.pet.status),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      // Raza (si existiera en el modelo actual) o ID
-                      Text(
-                        "ID: ${widget.pet.id.substring(0, 8)}...",
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                      ),
-                      
-                      const SizedBox(height: 24),
-
-                      const SizedBox(height: 20),
-
-                      // TARJETAS DE INFO RÁPIDA (Responsive)
-                      Row(
-                        children: [
-                          _buildInfoCard(
-                            "Edad",
-                            "${widget.pet.edad ?? '?'} años",
-                            Icons.cake_rounded,
-                            Colors.orange,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildInfoCard(
-                            "Sexo",
-                            widget.pet.sexo,
-                            widget.pet.sexo == 'macho' ? Icons.male : Icons.female,
-                            widget.pet.sexo == 'macho' ? Colors.blue : Colors.pink,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildInfoCard(
-                            "Tamaño",
-                            widget.pet.tamano ?? 'Mediano',
-                            Icons.height,
-                            Colors.purple,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // --- SECCIÓN: FICHA MÉDICA ---
-                      if (widget.pet.fichaMedica != null) ...[
-                        Row(
-                          children: [
-                            Icon(Icons.medical_services_rounded, color: medicalColor),
-                            const SizedBox(width: 10),
-                            Text(
-                              "Ficha Médica",
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: medicalBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: medicalColor.withOpacity(0.2)),
-                          ),
+              child: Container(
+                transform: Matrix4.translationValues(0, -20, 0),
+                decoration: BoxDecoration(
+                  color: AppTheme.background,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // CABECERA
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Peso
-                              Row(
-                                children: [
-                                  Icon(Icons.monitor_weight_outlined, size: 20, color: medicalColor),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Peso: ${widget.pet.fichaMedica!.pesoKg} Kg",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600, 
-                                      color: medicalColor,
-                                      fontSize: 16
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                pet.nombre,
+                                style: AppTheme.lightTheme.textTheme.headlineLarge?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 34,
+                                  height: 1.1
+                                ),
                               ),
-                              const Divider(height: 24),
-                              
-                              // Badges Médicos (Wrap)
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _buildMedicalBadge("Esterilizado", widget.pet.fichaMedica!.esEsterilizado),
-                                  _buildMedicalBadge("Desparasitado", widget.pet.fichaMedica!.esDesparasitado),
-                                  _buildMedicalBadge("Vacunas al día", widget.pet.fichaMedica!.tieneVacunas),
-                                ],
-                              ),
+                                const SizedBox(height: 6),
+                                BlocBuilder<PetBloc, PetState>(
+                                  builder: (context, state) {
+                                    String? speciesName;
+                                    String? breedName;
+                                    if (pet.especieId != null) {
+                                      for (final c in state.species) {
+                                        if (c.id == pet.especieId) {
+                                          speciesName = c.name;
+                                          break;
+                                        }
+                                      }
+                                    }
+                                    if (pet.razaId != null) {
+                                      for (final c in state.breeds) {
+                                        if (c.id == pet.razaId) {
+                                          breedName = c.name;
+                                          break;
+                                        }
+                                      }
+                                    }
 
-                              // Observaciones Veterinarias
-                              if (widget.pet.fichaMedica!.observaciones != null && 
-                                  widget.pet.fichaMedica!.observaciones!.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                Text(
-                                  "Observaciones:",
-                                  style: TextStyle(fontWeight: FontWeight.bold, color: medicalColor),
+                                    final speciesLabel = speciesName ?? 'Especie desconocida';
+                                    final breedLabel = pet.razaId != null
+                                        ? (breedName ?? 'Raza desconocida')
+                                        : 'Raza desconocida';
+
+                                    return Text(
+                                      "$speciesLabel • $breedLabel",
+                                      style: TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    );
+                                  },
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.pet.fichaMedica!.observaciones!,
-                                  style: TextStyle(color: Colors.teal.shade900, fontStyle: FontStyle.italic),
-                                ),
-                              ]
                             ],
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        _buildStatusBadge(pet.status),
                       ],
+                    ),
+                    const SizedBox(height: 24),
 
-                      // --- SECCIÓN: HISTORIA ---
-                      Text(
-                        "Conoce su historia",
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        widget.pet.descripcion ?? 'Sin descripción disponible para esta mascota.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey.shade700,
-                          height: 1.6,
+                    // CHIPS
+                    Row(
+                      children: [
+                        _buildInfoChip(
+                          icon: Icons.cake_rounded,
+                          label: "${pet.edad ?? '?'} meses",
+                          color: Colors.orange,
                         ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // --- SECCIÓN: GALERÍA (CUERPO) ---
-                      if (images.isNotEmpty) ...[
-                        Row(
-                          children: [
-                            const Icon(Icons.photo_library_outlined, color: Colors.black87),
-                            const SizedBox(width: 10),
-                            Text('Galería', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                          ],
+                        const SizedBox(width: 12),
+                        _buildInfoChip(
+                          icon: pet.sexo.toLowerCase() == 'macho' ? Icons.male : Icons.female,
+                          label: pet.sexo,
+                          color: pet.sexo.toLowerCase() == 'macho' ? Colors.blue : Colors.pink,
                         ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 110,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: images.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 12),
-                            itemBuilder: (ctx, idx) {
-                              final url = images[idx];
-                              return GestureDetector(
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => Dialog(
-                                      backgroundColor: Colors.black,
-                                      insetPadding: const EdgeInsets.all(0),
-                                      child: Stack(
-                                        children: [
-                                          PageView.builder(
-                                            itemCount: images.length,
-                                            controller: PageController(initialPage: idx),
-                                            itemBuilder: (_, i) => InteractiveViewer(
-                                              child: Image.network(images[i], fit: BoxFit.contain),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            top: 30,
-                                            right: 20,
-                                            child: IconButton(
-                                              icon: const Icon(Icons.close, color: Colors.white),
-                                              onPressed: () => Navigator.of(context).pop(),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(url, width: 140, height: 110, fit: BoxFit.cover),
-                                ),
-                              );
-                            },
-                          ),
+                        const SizedBox(width: 12),
+                        _buildInfoChip(
+                          icon: Icons.straighten_rounded,
+                          label: pet.tamano ?? '?',
+                          color: Colors.purple,
                         ),
                       ],
-                      
-                      const SizedBox(height: 100), // Espacio para scroll final
+                    ),
+                    const SizedBox(height: 32),
+
+                    // HISTORIA
+                    _buildSectionTitle("Historia"),
+                    const SizedBox(height: 12),
+                    Text(
+                      pet.descripcion ?? "Sin historia disponible.",
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.6,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // SALUD
+                    if (pet.fichaMedica != null) ...[
+                      _buildSectionTitle("Salud y Bienestar"),
+                      const SizedBox(height: 16),
+                      _buildHealthCard(pet.fichaMedica!),
+                      const SizedBox(height: 32),
                     ],
-                  ),
+
+                    // GRID GALERÍA
+                    if (galleryImages.isNotEmpty) ...[ 
+                      _buildSectionTitle("Galería Completa"),
+                      const SizedBox(height: 16),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 1,
+                        ),
+                        itemCount: galleryImages.length,
+                        itemBuilder: (ctx, index) {
+                          // index + 1 porque la 0 es la portada
+                          return GestureDetector(
+                            onTap: () => _openFullScreenGallery(allImages, index + 1),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.network(
+                                galleryImages[index], 
+                                fit: BoxFit.cover,
+                                loadingBuilder: (ctx, child, progress) {
+                                  if (progress == null) return child;
+                                  return Container(color: Colors.grey.shade100);
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+
+                    const SizedBox(height: 80),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-        
-        // FAB - Diferente según vista
+
+        // FAB
         floatingActionButton: widget.isAdopterView
             ? FloatingActionButton.extended(
                 onPressed: () => _initiateAdoptionChat(context),
                 backgroundColor: AppTheme.primaryOrange,
-                icon: const Icon(Icons.volunteer_activism, color: Colors.white),
+                elevation: 4,
+                icon: const Icon(Icons.favorite_rounded, color: Colors.white),
                 label: const Text(
-                  'SOLICITAR ADOPCIÓN',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  'ME INTERESA',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                 ),
               )
-                          : _isGeneratingPdf
-                              ? const FloatingActionButton(
-                                  onPressed: null,
-                                  child: AppLoader(color: Colors.white, size: 28),
-                                )
-                              : FloatingActionButton.extended(
+            : _isGeneratingPdf
+                ? const FloatingActionButton(
+                    onPressed: null,
+                    backgroundColor: Colors.white,
+                    child: AppLoader(color: AppTheme.primaryOrange, size: 24),
+                  )
+                : FloatingActionButton.extended(
                     onPressed: _generatePdf,
-                    backgroundColor: Colors.black87,
-                    icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
+                    backgroundColor: AppTheme.textPrimary,
+                    icon: const Icon(Icons.description_outlined, color: Colors.white),
                     label: const Text(
                       'FICHA TÉCNICA',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
-      ),
-    );
+      );
   }
 
   // --- WIDGETS AUXILIARES ---
 
-  Widget _buildInfoCard(String label, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value.toUpperCase(),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: color.withOpacity(0.9),
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                color: color.withOpacity(0.7),
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.bold,
+        color: AppTheme.textPrimary,
+        fontSize: 20,
       ),
     );
   }
 
-  Widget _buildMedicalBadge(String label, bool value) {
-    if (!value) return const SizedBox.shrink(); // Si es falso no mostramos nada (o podrías mostrarlo gris)
-    
+  Widget _buildHealthCard(dynamic medical) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.teal.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.shade100),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
         children: [
-          const Icon(Icons.check_circle, size: 16, color: Colors.teal),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: Colors.teal.shade800, fontWeight: FontWeight.w600),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.health_and_safety_rounded, color: Colors.teal.shade700, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Peso Actual",
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                    ),
+                    Text(
+                      "${medical.pesoKg} Kg",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 18, 
+                        color: AppTheme.textPrimary
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                if (medical.tieneVacunas)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.shield_rounded, size: 14, color: Colors.green.shade700),
+                        const SizedBox(width: 6),
+                        Text(
+                          "Protegido", 
+                          style: TextStyle(
+                            color: Colors.green.shade800, 
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12
+                          )
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, indent: 20, endIndent: 20),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    _buildMedicalItem("Vacunas al día", medical.tieneVacunas, Icons.vaccines),
+                    _buildMedicalItem("Esterilizado", medical.esEsterilizado, Icons.content_cut),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _buildMedicalItem("Desparasitado", medical.esDesparasitado, Icons.bug_report),
+                    _buildMedicalItem("Microchip", medical.tieneMicrochip, Icons.qr_code),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (medical.observaciones != null && medical.observaciones!.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50.withOpacity(0.5),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 16, color: Colors.orange.shade800),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Nota Veterinaria",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    medical.observaciones!,
+                    style: TextStyle(
+                      color: Colors.orange.shade900.withOpacity(0.8),
+                      fontSize: 13,
+                      height: 1.4,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMedicalItem(String label, bool value, IconData icon) {
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: value ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: value ? Colors.green : Colors.grey,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value ? "Sí" : "No",
+                  style: TextStyle(
+                    color: value ? Colors.green.shade700 : Colors.grey.shade500,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
-    String text = status.toUpperCase();
+  Widget _buildInfoChip({required IconData icon, required String label, required Color color}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: color.withOpacity(0.9),
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-    switch (status) {
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color text;
+    String label = status.toUpperCase();
+
+    switch (status.toLowerCase()) {
       case 'disponible':
-        bgColor = Colors.green.shade100;
-        textColor = Colors.green.shade800;
+        bg = Colors.green.shade50;
+        text = Colors.green.shade700;
         break;
       case 'adoptado':
-        bgColor = Colors.blue.shade100;
-        textColor = Colors.blue.shade800;
+        bg = Colors.blue.shade50;
+        text = Colors.blue.shade700;
         break;
       case 'en_espera':
-        bgColor = Colors.orange.shade100;
-        textColor = Colors.orange.shade800;
+        bg = Colors.orange.shade50;
+        text = Colors.orange.shade800;
         break;
       default:
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.grey.shade700;
+        bg = Colors.grey.shade100;
+        text = Colors.grey.shade600;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: text.withOpacity(0.2)),
       ),
       child: Text(
-        text,
-        style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 12),
+        label,
+        style: TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5),
       ),
     );
   }
 
-  /// Inicia el proceso de solicitud de adopción
-  void _initiateAdoptionChat(BuildContext context) async {
-    // 1. Verificar si ya existe chat (llamada a backend)
-    // 2. Si no, crear chat en tabla 'chats'
-    // 3. Navegar a la pantalla de chat
-    
-    // Por ahora, simularemos la navegación al Tab de Solicitudes
+  void _initiateAdoptionChat(BuildContext context) {
     showAppSnackBar(
       context,
-      message: "Iniciando solicitud de adopción...",
+      message: "Próximamente: Chat de adopción",
       type: AppSnackBarType.info,
     );
-    Navigator.pop(context); // Vuelve al home (donde podrá ir al tab solicitudes)
-    // TODO: Implementar navegación directa al ChatScreen específico
   }
-
 }

@@ -96,11 +96,11 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
     // 1. AÑADIMOS EL BLOC LISTENER AQUÍ
     return BlocListener<PetBloc, PetState>(
       listener: (context, state) {
-        if (state is PetsLoading) {
+        if (state.actionStatus == PetActionStatus.loading) {
           // Opcional: Mostrar un diálogo de carga si prefieres bloquear la pantalla
           // showDialog(...) 
-        } else if (state is PetsLoaded) {
-          // 2. ÉXITO: Si la lista se recargó, significa que se creó/actualizó la mascota
+        } else if (state.actionStatus == PetActionStatus.success) {
+          // 2. ÉXITO: Si la acción se completó, significa que se creó/actualizó la mascota
           final message = isEditing ? '¡Mascota actualizada! 🎉' : '¡Mascota registrada exitosamente! 🐾';
           showAppSnackBar(
             context,
@@ -109,11 +109,11 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
           );
           // 3. Regresar a la pantalla anterior
           Navigator.pop(context);
-        } else if (state is PetsError) {
+        } else if (state.actionStatus == PetActionStatus.error) {
           // 4. ERROR
           showAppSnackBar(
             context,
-            message: 'Error: ${state.message}',
+            message: 'Error: ${state.actionMessage ?? "Error desconocido"}',
             type: AppSnackBarType.error,
           );
         }
@@ -134,8 +134,8 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
             Expanded(
               child: BlocBuilder<PetBloc, PetState>(
                 builder: (context, state) {
-                  // Si está cargando, mostramos spinner en lugar del formulario
-                  if (state is PetsLoading) {
+                  // Si está guardando, mostramos spinner en lugar del formulario
+                  if (state.actionStatus == PetActionStatus.loading) {
                     return const Center(
                       child: AppLoader(label: "Guardando mascota..."),
                     );
@@ -147,7 +147,7 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
                     children: [
                       Step1GeneralInfo(onNext: _nextPage, petToEdit: widget.petToEdit),
                       Step2MedicalInfo(onNext: _nextPage, petToEdit: widget.petToEdit),
-                      Step3Gallery(onSubmit: _nextPage, petToEdit: widget.petToEdit),
+                      Step3Gallery(onBack: _prevPage, petToEdit: widget.petToEdit),
                     ],
                   );
                 },

@@ -21,7 +21,6 @@ void showAppSnackBar(
       icon = Icons.error_outline_rounded;
       break;
     case AppSnackBarType.info:
-    default:
       backgroundColor = AppTheme.primaryOrange;
       icon = Icons.info_outline_rounded;
       break;

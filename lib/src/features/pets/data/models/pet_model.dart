@@ -11,6 +11,8 @@ class PetModel extends PetEntity {
     super.avatarUrl,
     required super.fundacionId,
     super.tamano = 'Mediano',
+    super.razaId,
+    super.especieId,
     super.galleryUrls = const [],
   });
 
@@ -42,6 +44,8 @@ class PetModel extends PetEntity {
       avatarUrl: avatar,
       fundacionId: json['fundacion_id'],
       tamano: json['tamano'] ?? 'Mediano',
+      razaId: json['raza_id'],
+      especieId: json['especie_id'],
       galleryUrls: loadedGallery,
     );
   }
@@ -56,6 +60,8 @@ class PetModel extends PetEntity {
       'avatar_url': avatarUrl,
       'fundacion_id': fundacionId,
       'tamano': tamano,
+      'raza_id': razaId,
+      'especie_id': especieId,
     };
   }
 }
