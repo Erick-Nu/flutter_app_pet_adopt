@@ -4,6 +4,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../bloc/auth_bloc.dart';
+import '../bloc/auth_event.dart';
+import '../bloc/auth_state.dart';
 import 'login_screen.dart';
 
 class RegisterFundacionScreen extends StatefulWidget {
@@ -193,22 +195,16 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
                     const SizedBox(height: 24),
 
                     // --- BOTÓN REGISTRAR ---
-                    SizedBox(
-                      height: 56,
-                      child: BlocBuilder<AuthBloc, AuthState>(
-                        builder: (context, state) {
-                          if (state is AuthLoading) {
-                            return ElevatedButton(
-                              onPressed: null,
-                              child: const AppLoader(size: 24, color: AppTheme.surface),
-                            );
-                          }
-                          return ElevatedButton(
-                            onPressed: _onRegister,
-                            child: const Text("Registrar Fundación"),
-                          );
-                        },
-                      ),
+                    BlocBuilder<AuthBloc, AuthState>(
+                      builder: (context, state) {
+                        if (state is AuthLoading) {
+                          return const Center(child: AppLoader());
+                        }
+                        return ElevatedButton(
+                          onPressed: _onRegister,
+                          child: const Text("Registrar Fundación"),
+                        );
+                      },
                     ),
                     
                     const SizedBox(height: 24),

@@ -2,7 +2,6 @@
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/user_model.dart';
 import '../../../../core/services/logger_service.dart';
 
@@ -33,9 +32,9 @@ abstract class AuthRemoteDataSource {
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final SupabaseClient supabaseClient;
   
-  // Variables de entorno
-  String get _supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
-  String get _anonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  // Obtener credenciales desde las variables de compilación
+  static const String _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String _anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
   // URL DE REDIRECCIÓN (Asegúrate que coincida con tu Vercel)
   final String _redirectUrl = 'https://web-page-app-pet-adopt-git-master-ericks-projects-cf837703.vercel.app';

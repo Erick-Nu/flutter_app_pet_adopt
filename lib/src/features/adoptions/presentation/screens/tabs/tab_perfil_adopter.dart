@@ -5,6 +5,7 @@ import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../domain/entities/adopter_entity.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../../auth/presentation/bloc/auth_event.dart';
 import '../../bloc/adopter_profile.dart';
 import '../perfil/edit_perfil_adopter_screen.dart';
 

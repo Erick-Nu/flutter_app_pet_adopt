@@ -5,12 +5,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
-import '../../../../../core/widgets/map_location_picker.dart';
-import '../../../domain/entities/foundation_entity.dart';
+import '../../../../../core/widgets/map_location_picker.dart'; // Asegúrate de tener este widget
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../../auth/presentation/bloc/auth_event.dart';
+import '../../../domain/entities/foundation_entity.dart';
+import '../../bloc/profile/foundation_profile_bloc.dart';
 import '../../bloc/profile/foundation_profile_event.dart';
 import '../../bloc/profile/foundation_profile_state.dart';
-import '../../bloc/profile/foundation_profile_bloc.dart';
 
 class TabProfile extends StatefulWidget {
   const TabProfile({super.key});
@@ -19,68 +20,55 @@ class TabProfile extends StatefulWidget {
   State<TabProfile> createState() => _TabProfileState();
 }
 
-class _TabProfileState extends State<TabProfile> with SingleTickerProviderStateMixin {
+class _TabProfileState extends State<TabProfile> {
   bool _isEditing = false;
-  late AnimationController _animController;
-  late Animation<double> _fadeAnimation;
+  final _formKey = GlobalKey<FormState>();
+
+  // Controladores
+  late TextEditingController _nameCtrl;
+  late TextEditingController _descCtrl;
+  late TextEditingController _phoneCtrl;
+  late TextEditingController _addressCtrl;
   
-  // Controllers
-  final _nombreCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
   File? _newLogoFile;
   LatLng? _selectedLocation;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = CurvedAnimation(parent: _animController, curve: Curves.easeInOut);
-    
-    final userId = Supabase.instance.client.auth.currentUser!.id;
-    context.read<FoundationProfileBloc>().add(LoadProfile(userId));
-  }
+    _nameCtrl = TextEditingController();
+    _descCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
+    _addressCtrl = TextEditingController();
 
-  @override
-  void dispose() {
-    _animController.dispose();
-    _nombreCtrl.dispose();
-    _descCtrl.dispose();
-    _phoneCtrl.dispose();
-    _addressCtrl.dispose();
-    super.dispose();
+    // Cargar perfil al iniciar
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      context.read<FoundationProfileBloc>().add(LoadProfile(userId));
+    }
   }
 
   void _enableEditing(FoundationEntity foundation) {
     setState(() {
       _isEditing = true;
-      _nombreCtrl.text = foundation.nombre;
+      _nameCtrl.text = foundation.nombre;
       _descCtrl.text = foundation.descripcion ?? '';
       _phoneCtrl.text = foundation.telefono ?? '';
       _addressCtrl.text = foundation.direccion ?? '';
-      _selectedLocation = LatLng(
-        foundation.latitud ?? -0.1807,
-        foundation.longitud ?? -78.4678
-      );
+      
+      if (foundation.latitud != null && foundation.longitud != null) {
+        _selectedLocation = LatLng(foundation.latitud!, foundation.longitud!);
+      } else {
+        _selectedLocation = const LatLng(-0.1807, -78.4678); // Default Quito
+      }
     });
-    _animController.forward();
-  }
-
-  void _cancelEditing() {
-    setState(() {
-      _isEditing = false;
-      _newLogoFile = null;
-    });
-    _animController.reverse();
   }
 
   void _saveChanges(FoundationEntity original) {
+    if (!_formKey.currentState!.validate()) return;
+
     final updated = original.copyWith(
-      nombre: _nombreCtrl.text,
+      nombre: _nameCtrl.text,
       descripcion: _descCtrl.text,
       telefono: _phoneCtrl.text,
       direccion: _addressCtrl.text,
@@ -88,699 +76,392 @@ class _TabProfileState extends State<TabProfile> with SingleTickerProviderStateM
       longitud: _selectedLocation?.longitude,
       newLogoFile: _newLogoFile,
     );
-    
+
     context.read<FoundationProfileBloc>().add(UpdateProfileEvent(updated));
-    _animController.reverse();
     setState(() => _isEditing = false);
   }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 85,
-    );
+    final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked != null) {
       setState(() => _newLogoFile = File(picked.path));
     }
   }
 
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
-            Icon(Icons.logout, color: Colors.red),
-            SizedBox(width: 12),
-            Text('¿Cerrar sesión?'),
-          ],
-        ),
-        content: const Text('Tendrás que ingresar tus datos nuevamente.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.read<AuthBloc>().add(AuthLogoutRequested());
-            },
-            child: const Text('Cerrar sesión'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<FoundationProfileBloc, FoundationProfileState>(
-      builder: (context, state) {
-        if (state is ProfileLoading) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Cargando perfil...', style: TextStyle(color: Colors.grey)),
-              ],
-            ),
-          );
-        }
-        
-        if (state is ProfileError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
-                const SizedBox(height: 16),
-                Text(
-                  "Error al cargar perfil",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Text(
-                    state.message,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () {
-                    final userId = Supabase.instance.client.auth.currentUser!.id;
-                    context.read<FoundationProfileBloc>().add(LoadProfile(userId));
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Reintentar'),
-                ),
-              ],
-            ),
-          );
-        }
-        
-        if (state is ProfileLoaded) {
-          final foundation = state.foundation;
-          final displayLocation = LatLng(
-            foundation.latitud ?? -0.1807, 
-            foundation.longitud ?? -78.4678
-          );
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              final userId = Supabase.instance.client.auth.currentUser!.id;
-              context.read<FoundationProfileBloc>().add(LoadProfile(userId));
-            },
-            child: CustomScrollView(
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA), // Fondo gris profesional
+      body: BlocConsumer<FoundationProfileBloc, FoundationProfileState>(
+        listener: (context, state) {
+          if (state is ProfileLoaded) {
+             // Opcional: Feedback visual si es necesario tras recargar
+          }
+          if (state is ProfileError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is ProfileLoading) {
+            return const Center(child: CircularProgressIndicator(color: AppTheme.primaryOrange));
+          }
+          
+          if (state is ProfileLoaded) {
+            final foundation = state.foundation;
+            return CustomScrollView(
               slivers: [
-                // HEADER MODERNO CON LOGO
+                // 1. CABECERA EXPANDIBLE (SLIVER APP BAR)
+                _buildSliverAppBar(foundation),
+
+                // 2. CONTENIDO SCROLLABLE
                 SliverToBoxAdapter(
-                  child: _buildModernHeader(foundation),
-                ),
-
-                // CONTENIDO PRINCIPAL
-                SliverPadding(
-                  padding: const EdgeInsets.all(20),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      if (!_isEditing) ...[
-                        _buildInfoSection(foundation, displayLocation),
-                        const SizedBox(height: 24),
-                        _buildActionsSection(foundation),
-                      ] else ...[
-                        _buildEditSection(foundation),
-                      ],
-                      const SizedBox(height: 80),
-                    ]),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        
-        return Container();
-      },
-    );
-  }
-
-  Widget _buildModernHeader(FoundationEntity foundation) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppTheme.primaryOrange,
-            AppTheme.primaryOrange.withOpacity(0.8),
-          ],
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            // LOGO CON ANIMACIÓN
-            GestureDetector(
-              onTap: _isEditing ? _pickImage : null,
-              child: Hero(
-                tag: 'foundation_logo',
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 65,
-                        backgroundColor: Colors.grey.shade100,
-                        backgroundImage: _newLogoFile != null
-                            ? FileImage(_newLogoFile!) as ImageProvider
-                            : (foundation.logoUrl != null 
-                                ? NetworkImage(foundation.logoUrl!) 
-                                : null),
-                        child: foundation.logoUrl == null && _newLogoFile == null
-                            ? Icon(Icons.business, size: 60, color: Colors.grey.shade400) 
-                            : null,
-                      ),
-                    ),
-                    if (_isEditing)
-                      Positioned(
-                        right: 5,
-                        bottom: 5,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.withOpacity(0.5),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // NOMBRE Y DIRECCIÓN
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  Text(
-                    foundation.nombre,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                    ),
-                  ),
-                  if (foundation.direccion != null && foundation.direccion!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.location_on, size: 16, color: Colors.white70),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            foundation.direccion!,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white70, fontSize: 14),
-                          ),
-                        ),
+                        if (!_isEditing) ...[
+                          _buildStatsRow(),
+                          const SizedBox(height: 24),
+                          _buildSectionTitle("Información"),
+                          _buildInfoCard(foundation),
+                          const SizedBox(height: 24),
+                          _buildSectionTitle("Ubicación"),
+                          _buildMapPreview(foundation),
+                          const SizedBox(height: 30),
+                          _buildLogoutButton(context),
+                        ] else ...[
+                          _buildEditForm(foundation),
+                        ],
+                        const SizedBox(height: 40), // Espacio final
                       ],
                     ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoSection(FoundationEntity foundation, LatLng displayLocation) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // INFORMACIÓN BÁSICA
-        const Text(
-          'Información de Contacto',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        _buildModernInfoCard(
-          icon: Icons.phone_rounded,
-          title: 'Teléfono',
-          value: foundation.telefono ?? 'No registrado',
-          color: Colors.green,
-        ),
-        const SizedBox(height: 12),
-        _buildModernInfoCard(
-          icon: Icons.info_outline,
-          title: 'Sobre nosotros',
-          value: foundation.descripcion ?? 'Sin descripción',
-          color: Colors.blue,
-          maxLines: 4,
-        ),
-        
-        // UBICACIÓN
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            const Icon(Icons.map_outlined, size: 20),
-            const SizedBox(width: 8),
-            const Text(
-              'Nuestra Ubicación',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          height: 200,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: MapLocationPicker(
-            initialCenter: displayLocation,
-            isReadOnly: true,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionsSection(FoundationEntity foundation) {
-    return Column(
-      children: [
-        // BOTÓN EDITAR PERFIL
-        Container(
-          width: double.infinity,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppTheme.primaryOrange, AppTheme.primaryOrange.withOpacity(0.8)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryOrange.withOpacity(0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _enableEditing(foundation),
-              borderRadius: BorderRadius.circular(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.edit_rounded, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text(
-                    'Editar Perfil',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
                   ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 24),
-        const Divider(),
-        const SizedBox(height: 16),
-        
-        // OPCIONES ADICIONALES
-        _buildMenuOption(
-          icon: Icons.settings_outlined,
-          title: 'Configuración',
-          subtitle: 'Preferencias y ajustes',
-          onTap: () {},
-        ),
-        _buildMenuOption(
-          icon: Icons.help_outline,
-          title: 'Ayuda y Soporte',
-          subtitle: 'Preguntas frecuentes',
-          onTap: () {},
-        ),
-        _buildMenuOption(
-          icon: Icons.logout,
-          title: 'Cerrar Sesión',
-          subtitle: 'Salir de tu cuenta',
-          color: Colors.red,
-          onTap: _showLogoutDialog,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEditSection(FoundationEntity foundation) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // HEADER MODO EDICIÓN
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.edit, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Modo Edición',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      Text(
-                        'Actualiza la información de tu fundación',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: _cancelEditing,
                 ),
               ],
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // FORMULARIO
-          TextFormField(
-            controller: _nombreCtrl,
-            decoration: InputDecoration(
-              labelText: "Nombre de la Fundación",
-              prefixIcon: const Icon(Icons.business),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              filled: true,
-              fillColor: Colors.grey.shade50,
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _descCtrl,
-            maxLines: 4,
-            decoration: InputDecoration(
-              labelText: "Descripción",
-              hintText: "Cuéntanos sobre tu fundación...",
-              prefixIcon: const Icon(Icons.description),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              filled: true,
-              fillColor: Colors.grey.shade50,
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _phoneCtrl,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: "Teléfono de Contacto",
-              prefixIcon: const Icon(Icons.phone),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              filled: true,
-              fillColor: Colors.grey.shade50,
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // SECCIÓN DE UBICACIÓN
-          const Row(
-            children: [
-              Icon(Icons.location_on, color: Colors.blue),
-              SizedBox(width: 8),
-              Text(
-                "Ubicación",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _addressCtrl,
-            decoration: InputDecoration(
-              labelText: "Dirección",
-              hintText: "Ej: Av. Amazonas y Naciones Unidas",
-              prefixIcon: const Icon(Icons.location_city),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              filled: true,
-              fillColor: Colors.grey.shade50,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            height: 250,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: MapLocationPicker(
-              initialCenter: _selectedLocation!,
-              isReadOnly: false,
-              onPositionChanged: (pos) {
-                setState(() => _selectedLocation = pos);
-                context.read<FoundationProfileBloc>().add(
-                  PickAddressFromMap(pos.latitude, pos.longitude),
-                );
-              },
-            ),
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // BOTONES DE ACCIÓN
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _cancelEditing,
-                  child: const Text('Cancelar'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: AppTheme.primaryOrange,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () => _saveChanges(foundation),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.save),
-                      SizedBox(width: 8),
-                      Text('Guardar Cambios', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+            );
+          }
+          return const Center(child: Text("No se pudo cargar el perfil"));
+        },
       ),
     );
   }
 
-  Widget _buildModernInfoCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-    int maxLines = 2,
-  }) {
+  // --- WIDGETS UI ---
+
+  Widget _buildSliverAppBar(FoundationEntity foundation) {
+    return SliverAppBar(
+      expandedHeight: 240,
+      pinned: true,
+      backgroundColor: AppTheme.primaryOrange,
+      elevation: 0,
+      actions: [
+        if (!_isEditing)
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+              child: const Icon(Icons.edit, color: Colors.white, size: 20),
+            ),
+            onPressed: () => _enableEditing(foundation),
+          )
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            // Fondo con gradiente
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFFF8F00), AppTheme.primaryOrange],
+                ),
+              ),
+            ),
+            // Decoración curva blanca abajo
+            Positioned(
+              bottom: -1,
+              child: Container(
+                height: 30,
+                width: MediaQuery.of(context).size.width,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF5F7FA),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+              ),
+            ),
+            // Contenido Central
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: _isEditing ? _pickImage : null,
+                  child: Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]),
+                        child: CircleAvatar(
+                          radius: 55,
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage: _newLogoFile != null
+                              ? FileImage(_newLogoFile!) as ImageProvider
+                              : (foundation.logoUrl != null ? NetworkImage(foundation.logoUrl!) : null),
+                          child: (foundation.logoUrl == null && _newLogoFile == null)
+                              ? const Icon(Icons.business, size: 50, color: Colors.grey)
+                              : null,
+                        ),
+                      ),
+                      if (_isEditing)
+                        Positioned(
+                          right: 0, bottom: 0,
+                          child: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.blue,
+                            child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  foundation.nombre,
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                if (!_isEditing)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                    child: const Text("Fundación Verificada", style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
+                const SizedBox(height: 20), // Espacio para la curva
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        Expanded(child: _buildStatCard("Mascotas", "12", Icons.pets, Colors.blue)), // TODO: Conectar con conteo real
+        const SizedBox(width: 12),
+        Expanded(child: _buildStatCard("Adopciones", "85", Icons.favorite, Colors.pink)),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  maxLines: maxLines,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 12),
+          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
         ],
       ),
     );
   }
 
-  Widget _buildMenuOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    final itemColor = color ?? Colors.grey.shade700;
-    
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: itemColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+  Widget _buildInfoCard(FoundationEntity f) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: Column(
+        children: [
+          _buildInfoRow(Icons.description_outlined, f.descripcion ?? "Sin descripción"),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
+          _buildInfoRow(Icons.phone_outlined, f.telefono ?? "Sin teléfono"),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
+          _buildInfoRow(Icons.location_on_outlined, f.direccion ?? "Sin dirección"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppTheme.primaryOrange, size: 22),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.4),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMapPreview(FoundationEntity f) {
+    final location = (f.latitud != null && f.longitud != null) 
+        ? LatLng(f.latitud!, f.longitud!) 
+        : const LatLng(-0.1807, -78.4678);
+
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: MapLocationPicker(
+          initialCenter: location,
+          isReadOnly: true, // Modo solo lectura
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: () {
+          // Mostrar diálogo de confirmación
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text("Cerrar Sesión"),
+              content: const Text("¿Estás seguro de que quieres salir?"),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.read<AuthBloc>().add(AuthLogoutRequested());
+                  },
+                  child: const Text("Salir", style: TextStyle(color: Colors.red)),
                 ),
-                child: Icon(icon, color: itemColor, size: 22),
+              ],
+            ),
+          );
+        },
+        icon: const Icon(Icons.logout, color: Colors.red),
+        label: const Text("Cerrar Sesión", style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold)),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: Colors.red.withOpacity(0.05),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+    );
+  }
+
+  // --- MODO EDICIÓN ---
+
+  Widget _buildEditForm(FoundationEntity original) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle("Datos Generales"),
+          TextFormField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(labelText: "Nombre Fundación", prefixIcon: Icon(Icons.business)),
+            validator: (v) => v!.isEmpty ? "Requerido" : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _descCtrl,
+            decoration: const InputDecoration(labelText: "Descripción", prefixIcon: Icon(Icons.info_outline)),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _phoneCtrl,
+            decoration: const InputDecoration(labelText: "Teléfono", prefixIcon: Icon(Icons.phone)),
+            keyboardType: TextInputType.phone,
+          ),
+          
+          const SizedBox(height: 32),
+          _buildSectionTitle("Ubicación"),
+          const Text("Mueve el marcador rojo para actualizar tu ubicación exacta.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 8),
+          
+          TextFormField(
+            controller: _addressCtrl,
+            decoration: const InputDecoration(labelText: "Dirección (Texto)", prefixIcon: Icon(Icons.map)),
+          ),
+          const SizedBox(height: 12),
+          
+          // MAPA INTERACTIVO PARA SELECCIONAR
+          Container(
+            height: 300,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.primaryOrange.withOpacity(0.5), width: 2),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: MapLocationPicker(
+                initialCenter: _selectedLocation!,
+                isReadOnly: false,
+                onPositionChanged: (pos) {
+                  setState(() => _selectedLocation = pos);
+                  // Opcional: Reverse Geocoding aquí si quieres actualizar el texto de dirección automáticamente
+                },
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _isEditing = false),
+                  child: const Text("Cancelar"),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        color: itemColor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+                child: FilledButton(
+                  onPressed: () => _saveChanges(original),
+                  child: const Text("Guardar Cambios"),
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

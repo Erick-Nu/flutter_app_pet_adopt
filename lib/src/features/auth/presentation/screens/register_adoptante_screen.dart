@@ -5,6 +5,8 @@ import '../../../../core/services/logger_service.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../bloc/auth_bloc.dart';
+import '../bloc/auth_event.dart';
+import '../bloc/auth_state.dart';
 import 'login_screen.dart';
 
 final _emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
@@ -212,22 +214,16 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
                     const SizedBox(height: 24),
 
                     // --- BOTÓN REGISTRAR ---
-                    SizedBox(
-                      height: 56,
-                      child: BlocBuilder<AuthBloc, AuthState>(
-                        builder: (context, state) {
-                          if (state is AuthLoading) {
-                            return ElevatedButton(
-                              onPressed: null,
-                              child: const AppLoader(size: 24, color: AppTheme.surface),
-                            );
-                          }
-                          return ElevatedButton(
-                            onPressed: _onRegister,
-                            child: const Text("Crear Cuenta"),
-                          );
-                        },
-                      ),
+                    BlocBuilder<AuthBloc, AuthState>(
+                      builder: (context, state) {
+                        if (state is AuthLoading) {
+                          return const Center(child: AppLoader());
+                        }
+                        return ElevatedButton(
+                          onPressed: _onRegister,
+                          child: const Text("Crear Cuenta"),
+                        );
+                      },
                     ),
                     
                     const SizedBox(height: 24),
