@@ -4,17 +4,20 @@ import '../../../../../core/theme/app_theme.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_event.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
+import '../../bloc/profile/foundation_profile_bloc.dart';
+import '../../bloc/profile/foundation_profile_state.dart';
+import '../profile/edit_foundation_profile_screen.dart';
 
 class TabPerfilFundacion extends StatelessWidget {
   const TabPerfilFundacion({super.key});
 
   void _onLogout(BuildContext context) {
-    // Mostrar diálogo de confirmación para ser más profesional
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Cerrar Sesión"),
         content: const Text("¿Estás seguro de que deseas salir?"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -23,10 +26,9 @@ class TabPerfilFundacion extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              // Disparar evento de logout
               context.read<AuthBloc>().add(AuthLogoutRequested());
             },
-            child: Text("Salir", style: TextStyle(color: AppTheme.primaryOrange)),
+            child: const Text("Salir", style: TextStyle(color: AppTheme.primaryOrange, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -36,113 +38,111 @@ class TabPerfilFundacion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, state) {
-        // Obtenemos el usuario autenticado (si existe)
-        final user = (state is AuthAuthenticated) ? state.user : null;
-        final userEmail = user?.email ?? "cargando...";
-        final userName = user != null
-          ? (user.email.contains('@') ? user.email.split('@').first : user.email)
-          : "Fundación";
-        // Fallback para avatar (no disponible en UserEntity por ahora)
-        final String? avatarUrl = null; 
+      builder: (context, authState) {
+        // Email desde autenticación
+        final userEmail = (authState is AuthAuthenticated) ? authState.user.email : "cargando...";
+
+        // Nombre y logo desde perfil de fundación
+        final profileState = context.watch<FoundationProfileBloc>().state;
+        String displayName = "Fundación";
+        String? logoUrl;
+        if (profileState is ProfileLoaded) {
+          displayName = profileState.foundation.nombre;
+          logoUrl = profileState.foundation.logoUrl;
+        }
 
         return Scaffold(
           backgroundColor: AppTheme.background,
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                // --- 1. HEADER (Perfil) ---
-                _buildProfileHeader(userName, userEmail, avatarUrl),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 32), // <--- ESPACIO AUMENTADO AQUI
 
-                // --- 2. OPCIONES DE MENÚ ---
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Sección: Cuenta
-                      _buildSectionTitle("Mi Organización"),
-                      const SizedBox(height: 10),
-                      _buildMenuContainer([
-                        _buildMenuItem(
-                          icon: Icons.edit_outlined,
-                          title: "Editar Perfil",
-                          subtitle: "Actualiza logo, dirección y contacto",
-                          onTap: () {
-                            // TODO: Navegar a editar perfil
-                          },
-                        ),
-                        _buildDivider(),
-                        _buildMenuItem(
-                          icon: Icons.verified_user_outlined,
-                          title: "Verificación",
-                          subtitle: "Estado de la cuenta: Verificada",
-                          iconColor: Colors.green,
-                          onTap: () {},
-                        ),
-                      ]),
+                  // --- 1. HEADER TIPO TARJETA FLOTANTE ---
+                  _buildHorizontalHeader(context, displayName, userEmail, logoUrl),
 
-                      const SizedBox(height: 24),
-
-                      // Sección: Configuración
-                      _buildSectionTitle("Aplicación"),
-                      const SizedBox(height: 10),
-                      _buildMenuContainer([
-                        _buildMenuItem(
-                          icon: Icons.notifications_outlined,
-                          title: "Notificaciones",
-                          onTap: () {},
-                        ),
-                        _buildDivider(),
-                        _buildMenuItem(
-                          icon: Icons.lock_outline,
-                          title: "Seguridad y Contraseña",
-                          onTap: () {},
-                        ),
-                        _buildDivider(),
-                        _buildMenuItem(
-                          icon: Icons.help_outline,
-                          title: "Ayuda y Soporte",
-                          onTap: () {},
-                        ),
-                      ]),
-
-                      const SizedBox(height: 24),
-
-                      // Botón Cerrar Sesión
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: () => _onLogout(context),
-                          icon: const Icon(Icons.logout_rounded, color: AppTheme.error),
-                          label: const Text(
-                            "Cerrar Sesión", 
-                            style: TextStyle(
-                              color: AppTheme.error, 
-                              fontSize: 16, 
-                              fontWeight: FontWeight.w600
-                            ),
+                  // --- 2. OPCIONES DE MENÚ ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle("Gestión de Organización"),
+                        const SizedBox(height: 10),
+                        _buildMenuContainer([
+                          _buildMenuItem(
+                            icon: Icons.business_rounded,
+                            title: "Editar Perfil",
+                            subtitle: "Logo, dirección y contacto",
+                            onTap: () {
+                              final state = context.read<FoundationProfileBloc>().state;
+                              if (state is ProfileLoaded) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => BlocProvider.value(
+                                      value: context.read<FoundationProfileBloc>(),
+                                      child: EditFoundationProfileScreen(
+                                        foundation: state.foundation,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Perfil de fundación aún cargando')),
+                                );
+                              }
+                            },
                           ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            backgroundColor: AppTheme.error.withOpacity(0.05),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          _buildDivider(),
+                          _buildMenuItem(
+                            icon: Icons.verified_user_rounded,
+                            title: "Estado de Verificación",
+                            subtitle: "Cuenta verificada",
+                            iconColor: Colors.green,
+                            onTap: () {},
+                          ),
+                        ]),
+
+                        const SizedBox(height: 24),
+
+                        _buildSectionTitle("Configuración & Ayuda"),
+                        const SizedBox(height: 10),
+                        _buildMenuContainer([
+                          _buildMenuItem(
+                            icon: Icons.notifications_none_rounded,
+                            title: "Notificaciones",
+                            onTap: () {},
+                          ),
+                          _buildDivider(),
+                          _buildMenuItem(
+                            icon: Icons.lock_outline_rounded,
+                            title: "Seguridad",
+                            onTap: () {},
+                          ),
+                          _buildDivider(),
+                          _buildMenuItem(
+                            icon: Icons.help_outline_rounded,
+                            title: "Soporte Técnico",
+                            onTap: () {},
+                          ),
+                        ]),
+                        
+                        const SizedBox(height: 30),
+                        
+                        Center(
+                          child: Text(
+                            "PetAdopt v1.0.0",
+                            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                           ),
                         ),
-                      ),
-                      
-                      const SizedBox(height: 20),
-                      Center(
-                        child: Text(
-                          "Versión 1.0.0",
-                          style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                    ],
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -152,58 +152,96 @@ class TabPerfilFundacion extends StatelessWidget {
 
   // --- WIDGETS COMPONENTES ---
 
-  Widget _buildProfileHeader(String name, String email, String? avatarUrl) {
+  Widget _buildHorizontalHeader(BuildContext context, String name, String email, String? avatarUrl) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 30),
-      decoration: const BoxDecoration(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
         color: AppTheme.primaryOrange,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryOrange.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          )
+        ],
       ),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Avatar con borde
+          // 1. IMAGEN (Izquierda)
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))
-              ],
+              border: Border.all(color: Colors.white, width: 2),
             ),
             child: CircleAvatar(
-              radius: 45,
+              radius: 28,
               backgroundColor: Colors.white,
               backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
                   ? NetworkImage(avatarUrl)
                   : const AssetImage('assets/images/default_profile.png') as ImageProvider,
             ),
           ),
-          const SizedBox(height: 16),
-          // Nombre
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          
+          const SizedBox(width: 16),
+
+          // 2. TEXTOS (Centro)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    email,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
-          // Email
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              email,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
+
+          const SizedBox(width: 8),
+
+          // 3. BOTÓN SALIR (Derecha - Cuadrado Redondeado)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _onLogout(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                ),
+                child: const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
               ),
             ),
           ),
@@ -214,14 +252,14 @@ class TabPerfilFundacion extends StatelessWidget {
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.bold,
           color: Colors.grey.shade600,
-          letterSpacing: 1.0,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -231,10 +269,10 @@ class TabPerfilFundacion extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -249,19 +287,19 @@ class TabPerfilFundacion extends StatelessWidget {
     required String title,
     String? subtitle,
     required VoidCallback onTap,
-    Color iconColor = AppTheme.textSecondary,
+    Color iconColor = AppTheme.primaryOrange,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.1),
                   shape: BoxShape.circle,
@@ -295,7 +333,7 @@ class TabPerfilFundacion extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey.shade300),
+              Icon(Icons.chevron_right_rounded, size: 24, color: Colors.grey.shade300),
             ],
           ),
         ),
@@ -304,6 +342,6 @@ class TabPerfilFundacion extends StatelessWidget {
   }
 
   Widget _buildDivider() {
-    return Divider(height: 1, thickness: 0.5, color: Colors.grey.shade200, indent: 60);
+    return Divider(height: 1, thickness: 0.5, color: Colors.grey.shade100, indent: 60);
   }
 }

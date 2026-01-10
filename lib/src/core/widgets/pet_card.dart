@@ -17,10 +17,14 @@ class PetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Determinamos la imagen a mostrar
-    final imageProvider = (pet.avatarUrl != null && pet.avatarUrl!.isNotEmpty)
-        ? NetworkImage(pet.avatarUrl!)
-        : const AssetImage('assets/images/default_pet.png') as ImageProvider;
+    // Determinamos la imagen a mostrar (fallback a primera de galería)
+    String? coverUrl = pet.avatarUrl;
+    if ((coverUrl == null || coverUrl.isEmpty) && pet.galleryUrls.isNotEmpty) {
+      coverUrl = pet.galleryUrls.first;
+    }
+    final ImageProvider imageProvider = (coverUrl != null && coverUrl.isNotEmpty)
+        ? NetworkImage(coverUrl)
+        : const AssetImage('assets/images/default_pet.png');
 
     return GestureDetector(
       onTap: onTap,

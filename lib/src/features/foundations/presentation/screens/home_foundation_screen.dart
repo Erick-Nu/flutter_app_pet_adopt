@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/widgets/location_requirement_dialog.dart';
 import '../../../pets/presentation/bloc/pet_bloc.dart';
 import '../../../pets/presentation/bloc/pet_event.dart';
-import '../../../pets/presentation/screens/create_pet/pet_creation_wizard.dart';
 import '../../data/repositories/foundation_repository_impl.dart';
 import '../bloc/profile/foundation_profile_bloc.dart';
+import '../bloc/profile/foundation_profile_event.dart';
+import '../bloc/profile/foundation_profile_state.dart';
 import 'tabs/tab_inicio.dart';
 import 'tabs/tab_mascotas.dart';
 import 'tabs/tab_profile.dart';
@@ -39,6 +41,7 @@ class HomeFoundationScreen extends StatefulWidget {
 
 class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
   int _currentIndex = 0;
+  bool _hasShownLocationWarning = false;
 
   final List<Widget> _tabs = [
     const TabInicio(),
@@ -58,73 +61,68 @@ class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
         BlocProvider(
           create: (_) => FoundationProfileBloc(
             FoundationRepositoryImpl(Supabase.instance.client),
-          ),
+          )..add(LoadProfile(userId)),
         ),
       ],
-      child: Scaffold(
-        backgroundColor: Colors.grey[50],
-        
-        body: SafeArea(
-          child: IndexedStack(
-            index: _currentIndex,
-            children: _tabs,
-          ),
-        ),
-
-        floatingActionButton: _currentIndex == 1
-            ? Builder(
-                builder: (ctx) {
-                  return FloatingActionButton.extended(
-                    onPressed: () {
-                      final petBloc = ctx.read<PetBloc>();
-                      Navigator.push(
-                        ctx,
-                        MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: petBloc,
-                            child: const PetCreationWizard(),
-                          ),
-                        ),
-                      );
-                    },
-                    backgroundColor: primaryColor,
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('Nueva Mascota', style: TextStyle(color: Colors.white)),
-                  );
-                },
-              )
-            : null,
-
-        bottomNavigationBar: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            labelTextStyle: MaterialStateProperty.all(
-              const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+      child: BlocListener<FoundationProfileBloc, FoundationProfileState>(
+        listener: (context, state) {
+          if (state is ProfileLoaded && !_hasShownLocationWarning) {
+            final f = state.foundation;
+            final missingLocation = f.latitud == null || f.longitud == null || (f.direccion == null || f.direccion!.isEmpty);
+            if (missingLocation) {
+              _hasShownLocationWarning = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => BlocProvider.value(
+                    value: context.read<FoundationProfileBloc>(),
+                    child: LocationRequirementDialog(foundation: f),
+                  ),
+                );
+              });
+            }
+          }
+        },
+        child: Scaffold(
+          backgroundColor: Colors.grey[50],
+          body: SafeArea(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: _tabs,
             ),
           ),
-          child: NavigationBar(
-            elevation: 0,
-            backgroundColor: Colors.white,
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) => setState(() => _currentIndex = index),
-            indicatorColor: primaryColor.withOpacity(0.1),
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.dashboard_outlined),
-                label: 'Inicio',
+          bottomNavigationBar: NavigationBarTheme(
+            data: NavigationBarThemeData(
+              labelTextStyle: MaterialStateProperty.all(
+                const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.pets_outlined),
-                label: 'Mascotas',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.mark_email_unread_outlined),
-                label: 'Solicitudes',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                label: 'Perfil',
-              ),
-            ],
+            ),
+            child: NavigationBar(
+              elevation: 0,
+              backgroundColor: Colors.white,
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (index) => setState(() => _currentIndex = index),
+              indicatorColor: primaryColor.withOpacity(0.1),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  label: 'Inicio',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.pets_outlined),
+                  label: 'Mascotas',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.mark_email_unread_outlined),
+                  label: 'Solicitudes',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  label: 'Perfil',
+                ),
+              ],
+            ),
           ),
         ),
       ),

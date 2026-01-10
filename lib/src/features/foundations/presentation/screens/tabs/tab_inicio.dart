@@ -1,309 +1,441 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/widgets/location_requirement_dialog.dart';
 import '../../../../../core/utils/snackbar_utils.dart';
-import '../../../../../core/widgets/dashboard_stat_card.dart';
+import '../../../../pets/presentation/bloc/pet_bloc.dart';
+import '../../../../pets/presentation/screens/create_pet/pet_creation_wizard.dart';
+import '../../bloc/profile/foundation_profile_bloc.dart';
+import '../../bloc/profile/foundation_profile_state.dart';
 
 class TabInicio extends StatelessWidget {
   const TabInicio({super.key});
 
+  void _navigateToCreatePet(BuildContext context) {
+    final profileState = context.read<FoundationProfileBloc>().state;
+
+    if (profileState is ProfileLoaded) {
+      final f = profileState.foundation;
+      // Validar ubicación
+      if (f.latitud == null || f.longitud == null || (f.direccion == null || f.direccion!.isEmpty)) {
+        showDialog(
+          context: context,
+          builder: (_) => BlocProvider.value(
+            value: context.read<FoundationProfileBloc>(),
+            child: LocationRequirementDialog(foundation: f),
+          ),
+        );
+        return;
+      }
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: context.read<PetBloc>(),
+          child: const PetCreationWizard(),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToRequests(BuildContext context) {
+    showAppSnackBar(context, message: "Próximamente: Gestión de Solicitudes", type: AppSnackBarType.info);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- 1. NUEVO APPBAR PERSONALIZADO ---
+              _buildCustomAppBar(context),
+              
+              const SizedBox(height: 32), // Más espacio para separar
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(textTheme),
-          const SizedBox(height: 24),
-          _buildAlert(),
-          const SizedBox(height: 22),
-          _buildStatsGrid(),
-          const SizedBox(height: 26),
-          _buildQuickActions(textTheme),
-          const SizedBox(height: 24),
-          _buildHighlightsCard(context),
-          const SizedBox(height: 26),
-          _buildUpcomingVisits(textTheme),
-          const SizedBox(height: 18),
-        ],
+              // 2. TARJETA PRINCIPAL (Publicar Mascota)
+              _buildMainActionCard(
+                context,
+                title: "Publicar Nueva Mascota",
+                subtitle: "Ayuda a un peludito a encontrar su hogar ideal hoy mismo.",
+                icon: Icons.pets_rounded,
+                onTap: () => _navigateToCreatePet(context),
+              ),
+              const SizedBox(height: 30),
+
+              // 3. ACCIONES RÁPIDAS
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Acciones Rápidas",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  // Opcional: Ver todo
+                  // TextButton(onPressed: (){}, child: Text("Ver todo"))
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildQuickActionItem(
+                      context,
+                      label: "Ver Solicitudes",
+                      icon: Icons.assignment_ind_rounded,
+                      color: Colors.blue,
+                      count: 5, 
+                      onTap: () => _navigateToRequests(context),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildQuickActionItem(
+                      context,
+                      label: "Publicar Mascota",
+                      icon: Icons.add_a_photo_rounded,
+                      color: AppTheme.primaryOrange,
+                      onTap: () => _navigateToCreatePet(context),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 30),
+
+              // 4. RESUMEN
+              Text(
+                "Resumen General",
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildStatsGrid(),
+              
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildHeader(TextTheme textTheme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  // --- WIDGETS ---
+
+  /// Nuevo Header sofisticado con Logo y Notificaciones
+  Widget _buildCustomAppBar(BuildContext context) {
+    return BlocBuilder<FoundationProfileBloc, FoundationProfileState>(
+      builder: (context, state) {
+        String name = "Fundación";
+        String? logoUrl;
+        
+        if (state is ProfileLoaded) {
+          name = state.foundation.nombre;
+          logoUrl = state.foundation.logoUrl;
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Hola, Fundación 👋',
-              style: textTheme.bodyMedium?.copyWith(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
+            // Textos de Bienvenida
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        "Bienvenido de nuevo",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 22, // Fuente más grande
+                      fontWeight: FontWeight.w900, // Extra Bold
+                      color: AppTheme.textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Panel de Control',
-              style: textTheme.headlineSmall?.copyWith(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
+
+            const SizedBox(width: 16),
+
+            // Acciones Derecha (Notificación + Avatar)
+            Row(
+              children: [
+                // Botón Notificaciones
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.grey.shade200),
                   ),
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications_outlined, color: AppTheme.textPrimary, size: 24),
+                    onPressed: () {
+                      showAppSnackBar(context, message: "Sin notificaciones nuevas", type: AppSnackBarType.info);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // Avatar / Logo
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    image: DecorationImage(
+                      image: (logoUrl != null && logoUrl.isNotEmpty)
+                          ? NetworkImage(logoUrl)
+                          : const AssetImage('assets/images/default_profile.png') as ImageProvider,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppTheme.primaryOrange, width: 2),
-          ),
-          child: CircleAvatar(
-            radius: 22,
-            backgroundColor: AppTheme.primaryOrange.withOpacity(0.1),
-            child: const Icon(Icons.pets, color: AppTheme.primaryOrange),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildAlert() {
+  Widget _buildMainActionCard(BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF6EC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.primaryOrange.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: const [
-          Icon(Icons.lightbulb_outline, color: AppTheme.primaryOrange),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Recuerda validar documentos de adoptantes antes de agendar visitas.',
-              style: TextStyle(color: Colors.black87),
-            ),
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [AppTheme.primaryOrange, AppTheme.primaryOrange.withOpacity(0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryOrange.withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionItem(BuildContext context, {
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    int? count,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: color, size: 30),
+                    ),
+                    if (count != null && count > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                            color: Colors.redAccent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            count.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildStatsGrid() {
-    return Column(
+    return Row(
       children: [
-        Row(
-          children: [
-            DashboardStatCard(
-              title: 'En Adopción',
-              count: '12',
-              icon: Icons.pets,
-              iconColor: AppTheme.primaryOrange,
-              onTap: () {},
-            ),
-            const SizedBox(width: 15),
-            DashboardStatCard(
-              title: 'Solicitudes',
-              count: '5',
-              icon: Icons.mark_email_unread_rounded,
-              iconColor: Colors.blueAccent,
-              onTap: () {},
-            ),
-          ],
-        ),
-        const SizedBox(height: 15),
-        Row(
-          children: [
-            DashboardStatCard(
-              title: 'Adoptados',
-              count: '48',
-              icon: Icons.favorite_rounded,
-              iconColor: Colors.pinkAccent,
-              onTap: () {},
-            ),
-            const SizedBox(width: 15),
-            DashboardStatCard(
-              title: 'Visitas',
-              count: '1.2k',
-              icon: Icons.bar_chart_rounded,
-              iconColor: Colors.purpleAccent,
-              onTap: () {},
-            ),
-          ],
-        ),
+        _buildStatCard("Mascotas", "12", Icons.pets, Colors.purple),
+        const SizedBox(width: 16),
+        _buildStatCard("Adoptados", "45", Icons.home_rounded, Colors.green),
       ],
     );
   }
 
-  Widget _buildQuickActions(TextTheme textTheme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Acciones rápidas', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _QuickActionChip(icon: Icons.add_a_photo, label: 'Publicar mascota'),
-            _QuickActionChip(icon: Icons.calendar_today, label: 'Agendar visita'),
-            _QuickActionChip(icon: Icons.verified_user, label: 'Validar adoptante'),
-            _QuickActionChip(icon: Icons.description, label: 'Subir contratos'),
-          ],
+  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade100),
         ),
-      ],
-    );
-  }
-
-  Widget _buildHighlightsCard(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () {
-              showAppSnackBar(
-                context,
-                message: 'Navegar a publicar mascota',
-                type: AppSnackBarType.info,
-              );
-        },
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppTheme.primaryOrange, Color(0xFFFFB74D)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryOrange.withOpacity(0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.add_a_photo_rounded, color: Colors.white, size: 30),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Publicar Mascota',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Sube fotos y encuentra un hogar',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(30),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: const Text('Ir ahora', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUpcomingVisits(TextTheme textTheme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Próximas visitas', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            TextButton(onPressed: () {}, child: const Text('Ver todas')),
+              ],
+            ),
           ],
         ),
-        const SizedBox(height: 8),
-        _VisitTile(
-          title: 'Visita para Luna',
-          subtitle: 'Hoy · 5:30 PM · Bogotá',
-          color: AppTheme.primaryOrange,
-        ),
-        _VisitTile(
-          title: 'Visita para Rocky',
-          subtitle: 'Mañana · 10:00 AM · Chía',
-          color: Colors.blueAccent,
-        ),
-      ],
-    );
-  }
-}
-
-class _QuickActionChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _QuickActionChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      avatar: Icon(icon, size: 18, color: AppTheme.primaryOrange),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-      backgroundColor: Colors.grey.shade100,
-      onPressed: () {},
-      elevation: 0,
-      pressElevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    );
-  }
-}
-
-class _VisitTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Color color;
-
-  const _VisitTile({required this.title, required this.subtitle, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.12),
-          child: Icon(Icons.calendar_month, color: color),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {},
       ),
     );
   }
