@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
@@ -42,20 +43,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppTheme.error,
-                behavior: SnackBarBehavior.floating,
-              ),
+            showAppSnackBar(
+              context,
+              message: state.message,
+              type: AppSnackBarType.error,
             );
           } else if (state is AuthRecoverySuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.green.shade600,
-                behavior: SnackBarBehavior.floating,
-              ),
+            showAppSnackBar(
+              context,
+              message: state.message,
+              type: AppSnackBarType.success,
             );
             Navigator.of(context).pop();
           }

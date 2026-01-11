@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart'; // Para el GPS
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../../core/widgets/app_loader.dart'; // Tu loader personalizado
 
 class TabMapaAdopter extends StatefulWidget {
@@ -61,8 +62,10 @@ class _TabMapaAdopterState extends State<TabMapaAdopter> {
       
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Habilita los permisos de ubicación en Configuración')),
+          showAppSnackBar(
+            context,
+            message: 'Habilita los permisos de ubicación en Configuración',
+            type: AppSnackBarType.error,
           );
         }
         return;

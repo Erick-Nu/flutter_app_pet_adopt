@@ -3,9 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/widgets/app_loader.dart';
 import '../../../../../core/theme/app_theme.dart';
-import '../../../../../core/di/injection_container.dart' as di;
 import '../../../presentation/bloc/adoption_bloc.dart';
-import '../../../../../core/widgets/adopter_request_card.dart';
+import '../../../../../core/widgets/request_card.dart';
 
 class TabSolicitudesAdopter extends StatefulWidget {
   const TabSolicitudesAdopter({super.key});
@@ -20,25 +19,23 @@ class _TabSolicitudesAdopterState extends State<TabSolicitudesAdopter> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-    // Despachar carga después del primer frame para asegurar que el BlocProvider esté montado
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_currentUserId != null) {
-        context.read<AdoptionBloc>().add(LoadAdopterRequests(_currentUserId!));
-      }
-    });
+    _loadRequests();
   }
 
-  void _loadData() {
+  void _loadRequests() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       _currentUserId = user.id;
+      print('🔎 UI: Loading adopter requests for user: $_currentUserId');
       context.read<AdoptionBloc>().add(LoadAdopterRequests(_currentUserId!));
+    } else {
+      print('🔴 UI: No authenticated user found');
     }
   }
 
   Future<void> _onRefresh() async {
     if (_currentUserId != null) {
+      print('🔄 UI: Refreshing adopter requests');
       context.read<AdoptionBloc>().add(LoadAdopterRequests(_currentUserId!));
       await Future.delayed(const Duration(milliseconds: 800));
     }
@@ -46,64 +43,73 @@ class _TabSolicitudesAdopterState extends State<TabSolicitudesAdopter> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      // Bloc local aislado para la vista de adoptante (evita depender de otros providers)
-      create: (_) => di.sl<AdoptionBloc>(),
-      child: Scaffold(
-        backgroundColor: AppTheme.background,
-        body: SafeArea(
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              _buildCustomHeader(),
-              const SizedBox(height: 10),
-              Expanded(
-                child: BlocBuilder<AdoptionBloc, AdoptionState>(
-                  builder: (context, state) {
-                    if (state is AdoptionLoading) {
-                      return const Center(
-                        child: AppLoader(color: AppTheme.primaryOrange, size: 60),
-                      );
-                    }
-                    if (state is AdoptionLoaded) {
-                      return RefreshIndicator(
-                        onRefresh: _onRefresh,
-                        color: AppTheme.primaryOrange,
-                        backgroundColor: Colors.white,
-                        displacement: 20,
-                        child: state.requests.isEmpty
-                            ? _buildEmptyState()
-                            : ListView.separated(
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                itemCount: state.requests.length,
-                                separatorBuilder: (_, __) => const SizedBox(height: 16),
-                                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                                itemBuilder: (context, index) {
-                                  final req = state.requests[index];
-                                  return AdopterRequestCard(request: req, adopterId: _currentUserId!);
-                                },
-                              ),
-                      );
-                    }
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            _buildCustomHeader(),
+            const SizedBox(height: 10),
+            Expanded(
+              child: BlocBuilder<AdoptionBloc, AdoptionState>(
+                builder: (context, state) {
+                  print('✅ UI: State changed - ${state.runtimeType}');
+                  if (state is AdoptionLoading) {
+                    print('✅ UI: Showing loader');
+                    return const Center(
+                      child: AppLoader(color: AppTheme.primaryOrange, size: 60),
+                    );
+                  }
+                  if (state is AdoptionLoaded) {
+                    print('✅ UI: Loaded ${state.requests.length} requests');
+                    return RefreshIndicator(
+                      onRefresh: _onRefresh,
+                      color: AppTheme.primaryOrange,
+                      backgroundColor: Colors.white,
+                      displacement: 20,
+                      child: state.requests.isEmpty
+                          ? _buildEmptyState()
+                          : ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              itemCount: state.requests.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 16),
+                              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                              itemBuilder: (context, index) {
+                                final req = state.requests[index];
+                                print('✅ UI: Building card for request ${req.id}');
+                                return RequestCard(
+                                  request: req,
+                                  isAdopterView: true,
+                                  onAccept: () {},
+                                  onReject: () {},
+                                );
+                              },
+                            ),
+                    );
+                  }
+                  if (state is AdoptionError) {
+                    print('🔴 UI: Error - ${state.message}');
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text("No se pudieron cargar los datos."),
+                          Text("Error: ${state.message}"),
                           const SizedBox(height: 10),
                           TextButton.icon(
-                            onPressed: _loadData,
+                            onPressed: _loadRequests,
                             icon: const Icon(Icons.refresh, color: AppTheme.primaryOrange),
                             label: const Text("Reintentar", style: TextStyle(color: AppTheme.primaryOrange)),
                           )
                         ],
                       ),
                     );
-                  },
-                ),
+                  }
+                  return const Center(child: Text("Estado desconocido"));
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

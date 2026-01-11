@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../domain/entities/adopter_entity.dart';
 import '../../bloc/adopter_profile_bloc.dart';
 import '../../bloc/adopter_profile_event.dart';
@@ -95,13 +96,17 @@ class _EditPerfilAdopterScreenState extends State<EditPerfilAdopterScreen> {
       body: BlocListener<AdopterProfileBloc, AdopterProfileState>(
         listener: (context, state) {
           if (_submitted && state is AdopterProfileLoaded) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("¡Perfil actualizado con éxito!"), backgroundColor: Colors.green),
+            showAppSnackBar(
+              context,
+              message: "¡Perfil actualizado con éxito!",
+              type: AppSnackBarType.success,
             );
             Navigator.pop(context);
           } else if (state is AdopterProfileError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message), backgroundColor: AppTheme.error),
+            showAppSnackBar(
+              context,
+              message: state.message,
+              type: AppSnackBarType.error,
             );
             setState(() => _submitted = false);
           }

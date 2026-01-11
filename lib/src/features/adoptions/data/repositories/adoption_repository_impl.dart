@@ -107,61 +107,87 @@ class AdoptionRepositoryImpl implements AdoptionRepository {
 
   @override
   Future<List<AdoptionRequestEntity>> getRequestsForAdopter(String adopterId) async {
-    final response = await supabase.from('adopciones')
-        .select('*, mascotas(nombre, avatar_url, tamano, edad, sexo), fundaciones(nombre, avatar_url)')
-        .eq('adoptante_id', adopterId)
-        .order('fecha_adopcion', ascending: false);
+    try {
+      // 1. Consulta explícita (Igual que en Foundation, para evitar errores de mapeo)
+      final response = await supabase.from('adopciones')
+          .select('''
+            id,
+            mascota_id,
+            adoptante_id,
+            fundacion_id,
+            estado_tramite,
+            fecha_adopcion,
+            mascotas ( nombre, avatar_url, tamano, edad, sexo ),
+            fundaciones ( nombre, logo_url ),
+            adoptantes ( nombre, avatar_url )
+          ''')
+          .eq('adoptante_id', adopterId)
+          .order('fecha_adopcion', ascending: false);
 
-    // Debug: visor rápido de resultados
-    final list = response as List;
-    print('📬 (Adopter) Adopciones cargadas: ${list.length} registros para $adopterId');
-    if (list.isNotEmpty) {
-      print('🔎 (Adopter) Primer registro: ${list.first}');
-    }
+      print('📬 (Adopter) Solicitudes crudas: ${(response as List).length}');
 
-    final requests = <AdoptionRequestEntity>[];
-    for (final raw in (response as List)) {
-      final model = AdoptionRequestModel.fromJson(raw as Map<String, dynamic>);
+      final requests = <AdoptionRequestEntity>[];
 
-      // Fallback para imagen si avatar_url está vacío
-      if ((model.petImage == null || (model.petImage?.isEmpty ?? true)) && model.petId.isNotEmpty) {
+      for (final raw in (response as List)) {
         try {
-          final gallery = await supabase
-              .from('mascota_imagenes')
-              .select('imagen_url')
-              .eq('mascota_id', model.petId)
-              .limit(1);
-          String? firstImage;
-          if (gallery.isNotEmpty) {
-            final first = gallery.first;
-            firstImage = first['imagen_url'] as String?;
+          // Intentamos convertir el JSON
+          final model = AdoptionRequestModel.fromJson(raw as Map<String, dynamic>);
+
+          // 2. Lógica de recuperación de imagen (Fallback)
+          // Si la mascota no tiene avatar en la tabla principal, buscamos en la galería
+          if ((model.petImage == null || (model.petImage?.isEmpty ?? true)) && model.petId.isNotEmpty) {
+            try {
+              final gallery = await supabase
+                  .from('mascota_imagenes')
+                  .select('imagen_url')
+                  .eq('mascota_id', model.petId)
+                  .limit(1)
+                  .maybeSingle(); // Usamos maybeSingle para evitar excepciones si está vacío
+
+              if (gallery != null) {
+                final firstImage = gallery['imagen_url'] as String?;
+                if (firstImage != null) {
+                  // Creamos una copia del modelo con la nueva imagen
+                  requests.add(AdoptionRequestEntity(
+                    id: model.id,
+                    petId: model.petId,
+                    adopterId: model.adopterId,
+                    foundationId: model.foundationId,
+                    status: model.status,
+                    date: model.date,
+                    petName: model.petName,
+                    petImage: firstImage, // <--- Imagen recuperada
+                    petSize: model.petSize,
+                    petAge: model.petAge,
+                    petSex: model.petSex,
+                    adopterName: model.adopterName,
+                    adopterAvatar: model.adopterAvatar,
+                    foundationName: model.foundationName,
+                    foundationAvatar: model.foundationAvatar,
+                  ));
+                  continue; // Saltamos al siguiente ciclo ya que agregamos este
+                }
+              }
+            } catch (imgError) {
+              print('⚠️ Error imagen secundaria (adopter): $imgError');
+            }
           }
-          requests.add(AdoptionRequestEntity(
-            id: model.id,
-            petId: model.petId,
-            adopterId: model.adopterId,
-            foundationId: model.foundationId,
-            status: model.status,
-            date: model.date,
-            petName: model.petName,
-            petImage: firstImage ?? model.petImage,
-            petSize: model.petSize,
-            petAge: model.petAge,
-            petSex: model.petSex,
-            adopterName: model.adopterName,
-            adopterAvatar: model.adopterAvatar,
-            foundationName: model.foundationName,
-            foundationAvatar: model.foundationAvatar,
-          ));
-          continue;
-        } catch (e) {
-          print('⚠️ Error consultando galería (adopter) para ${model.petName}: $e');
+
+          // Si tiene imagen o falló el fallback, agregamos el modelo original
+          requests.add(model);
+
+        } catch (parseError) {
+          print('❌ Error parseando solicitud individual: $parseError');
+          // No hacemos rethrow para que una solicitud dañada no rompa toda la lista
         }
       }
+      return requests;
 
-      requests.add(model);
+    } catch (e) {
+      print('❌ Error General Supabase (Adopter): $e');
+      // Aquí sí lanzamos el error para que el Bloc muestre el estado de error
+      rethrow;
     }
-    return requests;
   }
 
   @override

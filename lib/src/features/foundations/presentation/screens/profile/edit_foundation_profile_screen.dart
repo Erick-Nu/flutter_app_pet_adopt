@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart'; // IMPORTANTE: Para el GPS
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../foundations/domain/entities/foundation_entity.dart';
 import '../../bloc/profile/foundation_profile_bloc.dart';
 import '../../bloc/profile/foundation_profile_event.dart';
@@ -118,17 +119,10 @@ class _EditFoundationProfileScreenState extends State<EditFoundationProfileScree
 
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error: $e"),
-          backgroundColor: AppTheme.error,
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'CONFIGURACIÓN',
-            textColor: Colors.white,
-            onPressed: () => Geolocator.openAppSettings(),
-          ),
-        ),
+      showAppSnackBar(
+        context,
+        message: "Error: $e",
+        type: AppSnackBarType.error,
       );
     } finally {
       if (mounted) setState(() => _isLoadingLocation = false);
@@ -183,13 +177,17 @@ class _EditFoundationProfileScreenState extends State<EditFoundationProfileScree
       body: BlocListener<FoundationProfileBloc, FoundationProfileState>(
         listener: (context, state) {
           if (_submitted && state is ProfileLoaded) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Perfil actualizado correctamente"), backgroundColor: Colors.green),
+            showAppSnackBar(
+              context,
+              message: "Perfil actualizado correctamente",
+              type: AppSnackBarType.success,
             );
             Navigator.pop(context);
           } else if (state is ProfileError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message), backgroundColor: AppTheme.error),
+            showAppSnackBar(
+              context,
+              message: state.message,
+              type: AppSnackBarType.error,
             );
             setState(() => _submitted = false);
           }

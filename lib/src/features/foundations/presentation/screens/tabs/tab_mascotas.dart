@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../../core/widgets/location_requirement_dialog.dart';
 import '../../../../../core/widgets/pet_card.dart';
 import '../../../../pets/presentation/bloc/pet_bloc.dart';
@@ -127,12 +128,16 @@ class _TabMascotasState extends State<TabMascotas> {
               listenWhen: (previous, current) => current.actionStatus != PetActionStatus.idle,
               listener: (context, state) {
                 if (state.actionStatus == PetActionStatus.error) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(state.actionMessage ?? 'Error desconocido'), backgroundColor: Colors.red),
+                  showAppSnackBar(
+                    context,
+                    message: state.actionMessage ?? 'Error desconocido',
+                    type: AppSnackBarType.error,
                   );
                 } else if (state.actionStatus == PetActionStatus.success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(state.actionMessage ?? 'Éxito'), backgroundColor: Colors.green),
+                  showAppSnackBar(
+                    context,
+                    message: state.actionMessage ?? 'Éxito',
+                    type: AppSnackBarType.success,
                   );
                 }
               },

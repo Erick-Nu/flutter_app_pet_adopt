@@ -50,7 +50,8 @@ class AdoptionRequestModel extends AdoptionRequestEntity {
       adopterName: adopterData?['nombre'] as String? ?? 'Usuario Desconocido',
       adopterAvatar: adopterData?['avatar_url'] as String?,
       foundationName: foundationData?['nombre'] as String?,
-      foundationAvatar: foundationData?['avatar_url'] as String?,
+      // Use logo_url instead of avatar_url
+      foundationAvatar: foundationData?['logo_url'] as String?,
     );
   }
 }

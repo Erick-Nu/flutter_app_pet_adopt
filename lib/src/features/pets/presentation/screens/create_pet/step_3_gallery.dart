@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../domain/entities/pet_entity.dart';
 import '../../bloc/pet_bloc.dart';
 import '../../bloc/pet_event.dart';
@@ -57,8 +58,10 @@ class _Step3GalleryState extends State<Step3Gallery> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error al seleccionar imágenes")),
+      showAppSnackBar(
+        context,
+        message: "Error al seleccionar imágenes",
+        type: AppSnackBarType.error,
       );
     }
   }
@@ -71,11 +74,10 @@ class _Step3GalleryState extends State<Step3Gallery> {
 
   void _submit() {
     if (_selectedImages.isEmpty && _existingImages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Debes agregar al menos una foto"),
-          backgroundColor: AppTheme.error,
-        ),
+      showAppSnackBar(
+        context,
+        message: "Debes agregar al menos una foto",
+        type: AppSnackBarType.error,
       );
       return;
     }

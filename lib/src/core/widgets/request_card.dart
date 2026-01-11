@@ -7,18 +7,34 @@ class RequestCard extends StatelessWidget {
   final AdoptionRequestEntity request;
   final VoidCallback onAccept;
   final VoidCallback onReject;
+  final bool isAdopterView; // <--- NUEVA PROPIEDAD
 
   const RequestCard({
     super.key,
     required this.request,
     required this.onAccept,
     required this.onReject,
+    this.isAdopterView = false, // Por defecto es false (vista de fundación)
   });
 
   @override
   Widget build(BuildContext context) {
     final bool isPending = request.status == 'pendiente';
     final bool isApproved = request.status == 'aprobada';
+
+    // LÓGICA DE VISUALIZACIÓN:
+    // Si es vista de adoptante -> Muestra datos de la Fundación
+    // Si es vista de fundación -> Muestra datos del Adoptante
+    final String displayName = isAdopterView 
+        ? (request.foundationName ?? "Fundación") 
+        : (request.adopterName ?? "Usuario");
+        
+    final String? displayAvatar = isAdopterView 
+        ? request.foundationAvatar 
+        : request.adopterAvatar;
+
+    // Etiqueta secundaria (ej: "Fundación" o "Interesado en")
+    final String subtitlePrefix = isAdopterView ? "Mascota: " : "Interesado en ";
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -41,15 +57,15 @@ class RequestCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // A. Avatar
+              // A. Avatar (Fundación o Adoptante según el modo)
               Container(
                 width: 48, height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.grey.shade100,
                   image: DecorationImage(
-                    image: (request.adopterAvatar != null && request.adopterAvatar!.isNotEmpty)
-                        ? NetworkImage(request.adopterAvatar!)
+                    image: (displayAvatar != null && displayAvatar.isNotEmpty)
+                        ? NetworkImage(displayAvatar)
                         : const AssetImage('assets/images/default_profile.png') as ImageProvider,
                     fit: BoxFit.cover,
                   ),
@@ -57,13 +73,13 @@ class RequestCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               
-              // B. Info (Nombre y Mascota)
+              // B. Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      request.adopterName ?? "Usuario",
+                      displayName, // Nombre dinámico
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
@@ -77,7 +93,7 @@ class RequestCard extends StatelessWidget {
                       text: TextSpan(
                         style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                         children: [
-                          const TextSpan(text: "Interesado en "),
+                          TextSpan(text: subtitlePrefix),
                           TextSpan(
                             text: request.petName ?? "una mascota",
                             style: const TextStyle(
@@ -94,29 +110,22 @@ class RequestCard extends StatelessWidget {
                 ),
               ),
 
-              // C. LADO DERECHO (ESTADOS + CHAT)
+              // C. ESTADO Y ACCIONES (Lado Derecho)
               if (isApproved) ...[
-                // Estado Aprobado (Verde)
+                // Estado Aprobado
                 _buildSquareButton(
                   icon: Icons.check_rounded,
                   color: Colors.green,
                   isAction: false,
                 ),
                 const SizedBox(width: 8),
-                // Botón Chat (Oscuro)
+                // Botón Chat (Visible para ambos)
                 _buildSquareButton(
                   icon: Icons.chat_bubble_outline_rounded,
                   color: const Color(0xFF2D3436),
                   isAction: true,
                   isFilled: true,
                   onTap: () {
-                    print('🖼️ RequestCard - Navegando al chat con:');
-                    print('   petName: ${request.petName}');
-                    print('   petImage: ${request.petImage}');
-                    print('   petSize: ${request.petSize}');
-                    print('   petAge: ${request.petAge}');
-                    print('   petSex: ${request.petSex}');
-                    
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -124,33 +133,40 @@ class RequestCard extends StatelessWidget {
                           petId: request.petId,
                           adopterId: request.adopterId,
                           foundationId: request.foundationId,
-                          otherUserName: request.adopterName ?? 'Usuario',
-                          otherUserAvatar: request.adopterAvatar,
-                          
-                          // Pasamos los datos para la Entidad Mascota
                           petName: request.petName ?? 'Mascota',
                           petImage: request.petImage,
                           petSize: request.petSize,
                           petAge: request.petAge,
                           petSex: request.petSex,
+                          // Datos dinámicos (Quién es el "otro" en el chat)
+                          otherUserName: isAdopterView 
+                              ? (request.foundationName ?? 'Fundación')
+                              : (request.adopterName ?? 'Usuario'),
+                          otherUserAvatar: isAdopterView 
+                              ? request.foundationAvatar 
+                              : request.adopterAvatar,
                         ),
                       ),
                     );
                   },
                 ),
               ] else ...[
-                // Estado Pendiente (Naranja) o Rechazado (Rojo)
                 _buildStatusIcon(request.status),
               ]
             ],
           ),
 
           // 2. ACCIONES INFERIORES (Solo si está pendiente)
+          // Si es Adoptante y está pendiente, mostramos un mensaje de espera
           if (isPending) ...[
             const SizedBox(height: 12),
             const Divider(height: 1, thickness: 0.5),
             const SizedBox(height: 8),
-            _buildIconActions(),
+            
+            if (!isAdopterView) 
+              _buildIconActions() // Botones Aceptar/Rechazar (Solo Fundación)
+            else 
+              _buildWaitingMessage(), // Mensaje "Esperando respuesta" (Solo Adoptante)
           ]
         ],
       ),
@@ -158,6 +174,22 @@ class RequestCard extends StatelessWidget {
   }
 
   // --- WIDGETS AUXILIARES ---
+
+  Widget _buildWaitingMessage() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Text(
+        "Esperando respuesta de la fundación...",
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
 
   /// Construye un botón o icono cuadrado de 44x44
   Widget _buildSquareButton({

@@ -41,9 +41,12 @@ class AdoptionBloc extends Bloc<AdoptionEvent, AdoptionState> {
   Future<void> _onLoadFoundationRequests(LoadFoundationRequests event, Emitter<AdoptionState> emit) async {
     emit(AdoptionLoading());
     try {
+      print('🟢 BLOC: Loading foundation requests for ${event.foundationId}');
       final reqs = await repository.getRequestsForFoundation(event.foundationId);
+      print('🟢 BLOC: Loaded ${reqs.length} requests');
       emit(AdoptionLoaded(reqs));
     } catch (e) {
+      print('🔴 BLOC Error: $e');
       emit(AdoptionError("Error cargando solicitudes: $e"));
     }
   }
@@ -51,9 +54,12 @@ class AdoptionBloc extends Bloc<AdoptionEvent, AdoptionState> {
   Future<void> _onLoadAdopterRequests(LoadAdopterRequests event, Emitter<AdoptionState> emit) async {
     emit(AdoptionLoading());
     try {
+      print('🟢 BLOC: Loading adopter requests for ${event.adopterId}');
       final reqs = await repository.getRequestsForAdopter(event.adopterId);
+      print('🟢 BLOC: Loaded ${reqs.length} requests');
       emit(AdoptionLoaded(reqs));
     } catch (e) {
+      print('🔴 BLOC Error: $e');
       emit(AdoptionError("Error cargando solicitudes: $e"));
     }
   }

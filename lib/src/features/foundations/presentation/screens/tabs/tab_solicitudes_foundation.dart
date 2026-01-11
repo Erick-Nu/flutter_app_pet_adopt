@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/widgets/app_loader.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../adoptions/presentation/bloc/adoption_bloc.dart';
 import '../../../../../core/widgets/request_card.dart';
 
@@ -56,20 +57,19 @@ class _TabSolicitudesFoundationState extends State<TabSolicitudesFoundation> {
               child: BlocConsumer<AdoptionBloc, AdoptionState>(
                 listener: (context, state) {
                   if (state is AdoptionActionSuccess) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(state.message),
-                        backgroundColor: state.openChat ? Colors.green : Colors.black87,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
+                    showAppSnackBar(
+                      context,
+                      message: state.message,
+                      type: state.openChat ? AppSnackBarType.success : AppSnackBarType.info,
                     );
                     if (state.openChat) {
                       // TODO: Navegar a la pantalla de Chat P2P
                     }
                   } else if (state is AdoptionError) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(state.message), backgroundColor: AppTheme.error),
+                    showAppSnackBar(
+                      context,
+                      message: state.message,
+                      type: AppSnackBarType.error,
                     );
                   }
                 },

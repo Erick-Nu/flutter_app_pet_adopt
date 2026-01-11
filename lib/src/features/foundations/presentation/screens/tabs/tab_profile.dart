@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_event.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
@@ -89,8 +90,10 @@ class TabPerfilFundacion extends StatelessWidget {
                                   ),
                                 );
                               } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Perfil de fundación aún cargando')),
+                                showAppSnackBar(
+                                  context,
+                                  message: 'Perfil de fundación aún cargando',
+                                  type: AppSnackBarType.info,
                                 );
                               }
                             },

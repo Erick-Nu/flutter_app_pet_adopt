@@ -225,45 +225,56 @@ class _ChatInputAreaState extends State<_ChatInputArea> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       color: Colors.white,
       child: Row(
         children: [
           Expanded(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300, width: 1),
               ),
               child: TextField(
                 controller: _controller,
                 decoration: const InputDecoration(
                   hintText: "Escribe un mensaje...",
+                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  contentPadding: EdgeInsets.symmetric(vertical: 10),
                 ),
                 minLines: 1,
-                maxLines: 4,
+                maxLines: 3,
                 textCapitalization: TextCapitalization.sentences,
                 onSubmitted: (_) => _send(),
+                style: const TextStyle(fontSize: 15),
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 44,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: _send,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryOrange,
-                shape: const CircleBorder(),
-                padding: EdgeInsets.zero,
-                elevation: 2,
+          const SizedBox(width: 10),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: AppTheme.primaryOrange, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _send,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryOrange,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.send_rounded, color: Colors.white, size: 22),
+                  alignment: Alignment.center,
+                ),
               ),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 22),
             ),
           ),
         ],
