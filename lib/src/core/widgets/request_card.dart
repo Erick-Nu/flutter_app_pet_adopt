@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/adoptions/domain/entities/adoption_request_entity.dart';
+import '../../features/chat/presentation/screens/chat_detail_screen.dart';
 
 class RequestCard extends StatelessWidget {
   final AdoptionRequestEntity request;
@@ -109,8 +110,31 @@ class RequestCard extends StatelessWidget {
                   isAction: true,
                   isFilled: true,
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Abriendo chat..."))
+                    print('🖼️ RequestCard - Navegando al chat con:');
+                    print('   petName: ${request.petName}');
+                    print('   petImage: ${request.petImage}');
+                    print('   petSize: ${request.petSize}');
+                    print('   petAge: ${request.petAge}');
+                    print('   petSex: ${request.petSex}');
+                    
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatDetailScreen(
+                          petId: request.petId,
+                          adopterId: request.adopterId,
+                          foundationId: request.foundationId,
+                          otherUserName: request.adopterName ?? 'Usuario',
+                          otherUserAvatar: request.adopterAvatar,
+                          
+                          // Pasamos los datos para la Entidad Mascota
+                          petName: request.petName ?? 'Mascota',
+                          petImage: request.petImage,
+                          petSize: request.petSize,
+                          petAge: request.petAge,
+                          petSex: request.petSex,
+                        ),
+                      ),
                     );
                   },
                 ),

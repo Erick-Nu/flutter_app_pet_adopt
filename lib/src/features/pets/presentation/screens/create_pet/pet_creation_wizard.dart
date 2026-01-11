@@ -107,8 +107,12 @@ class _PetCreationWizardState extends State<PetCreationWizard> {
             message: message,
             type: AppSnackBarType.success,
           );
-          // 3. Regresar a la pantalla anterior
-          Navigator.pop(context);
+          // 3. Regresar a la pantalla anterior (después del frame para evitar pantallas negras)
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          });
         } else if (state.actionStatus == PetActionStatus.error) {
           // 4. ERROR
           showAppSnackBar(

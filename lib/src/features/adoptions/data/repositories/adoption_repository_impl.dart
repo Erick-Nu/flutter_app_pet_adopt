@@ -37,7 +37,7 @@ class AdoptionRepositoryImpl implements AdoptionRepository {
             fundacion_id,
             estado_tramite,
             fecha_adopcion,
-            mascotas(nombre, avatar_url),
+            mascotas(nombre, avatar_url, tamano, edad, sexo),
             adoptantes(nombre, avatar_url)
           ''')
           .eq('fundacion_id', foundationId)
@@ -49,7 +49,56 @@ class AdoptionRepositoryImpl implements AdoptionRepository {
         print('🔍 Primer registro: ${response.first}');
       }
 
-      return (response as List).map((e) => AdoptionRequestModel.fromJson(e as Map<String, dynamic>)).toList();
+      // Mapear y completar imágenes faltantes
+      final requests = <AdoptionRequestEntity>[];
+      for (final item in response as List) {
+        final json = item as Map<String, dynamic>;
+        final request = AdoptionRequestModel.fromJson(json);
+
+        // Si avatar_url es null, intentar obtener una imagen de galería
+        if (request.petImage == null && request.petId.isNotEmpty) {
+          try {
+            final gallery = await supabase
+              .from('mascota_imagenes')
+              .select('imagen_url')
+                .eq('mascota_id', request.petId)
+                .limit(1);
+
+            String? firstImage;
+            if (gallery.isNotEmpty) {
+              final first = gallery.first;
+              firstImage = first['imagen_url'] as String?;
+            }
+
+            if (firstImage != null) {
+              print('🖼️ Usando imagen de galería para ${request.petName}: $firstImage');
+              requests.add(AdoptionRequestModel(
+                id: request.id,
+                petId: request.petId,
+                adopterId: request.adopterId,
+                foundationId: request.foundationId,
+                status: request.status,
+                date: request.date,
+                petName: request.petName,
+                petImage: firstImage,
+                petSize: request.petSize,
+                petAge: request.petAge,
+                petSex: request.petSex,
+                adopterName: request.adopterName,
+                adopterAvatar: request.adopterAvatar,
+              ));
+              continue;
+            }
+          } catch (e) {
+            print('⚠️ Error consultando galería para ${request.petName}: $e');
+          }
+        }
+
+        // Si no se encontró imagen, agregar tal cual
+        requests.add(request);
+      }
+
+      return requests;
     } catch (e) {
       print('❌ Error Supabase al cargar solicitudes: $e');
       rethrow;
@@ -59,10 +108,60 @@ class AdoptionRepositoryImpl implements AdoptionRepository {
   @override
   Future<List<AdoptionRequestEntity>> getRequestsForAdopter(String adopterId) async {
     final response = await supabase.from('adopciones')
-        .select('*, mascotas(nombre, avatar_url)')
+        .select('*, mascotas(nombre, avatar_url, tamano, edad, sexo), fundaciones(nombre, avatar_url)')
         .eq('adoptante_id', adopterId)
         .order('fecha_adopcion', ascending: false);
-    return (response as List).map((e) => AdoptionRequestModel.fromJson(e as Map<String, dynamic>)).toList();
+
+    // Debug: visor rápido de resultados
+    final list = response as List;
+    print('📬 (Adopter) Adopciones cargadas: ${list.length} registros para $adopterId');
+    if (list.isNotEmpty) {
+      print('🔎 (Adopter) Primer registro: ${list.first}');
+    }
+
+    final requests = <AdoptionRequestEntity>[];
+    for (final raw in (response as List)) {
+      final model = AdoptionRequestModel.fromJson(raw as Map<String, dynamic>);
+
+      // Fallback para imagen si avatar_url está vacío
+      if ((model.petImage == null || (model.petImage?.isEmpty ?? true)) && model.petId.isNotEmpty) {
+        try {
+          final gallery = await supabase
+              .from('mascota_imagenes')
+              .select('imagen_url')
+              .eq('mascota_id', model.petId)
+              .limit(1);
+          String? firstImage;
+          if (gallery.isNotEmpty) {
+            final first = gallery.first;
+            firstImage = first['imagen_url'] as String?;
+          }
+          requests.add(AdoptionRequestEntity(
+            id: model.id,
+            petId: model.petId,
+            adopterId: model.adopterId,
+            foundationId: model.foundationId,
+            status: model.status,
+            date: model.date,
+            petName: model.petName,
+            petImage: firstImage ?? model.petImage,
+            petSize: model.petSize,
+            petAge: model.petAge,
+            petSex: model.petSex,
+            adopterName: model.adopterName,
+            adopterAvatar: model.adopterAvatar,
+            foundationName: model.foundationName,
+            foundationAvatar: model.foundationAvatar,
+          ));
+          continue;
+        } catch (e) {
+          print('⚠️ Error consultando galería (adopter) para ${model.petName}: $e');
+        }
+      }
+
+      requests.add(model);
+    }
+    return requests;
   }
 
   @override

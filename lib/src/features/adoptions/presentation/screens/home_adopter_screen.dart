@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/di/injection_container.dart' as di;
 import '../../../../core/theme/app_theme.dart';
 import '../bloc/adopter_profile_bloc.dart';
+import '../bloc/adoption_bloc.dart';
 import 'tabs/tab_inicio_adopter.dart';
 import 'tabs/tab_mapa_adopter.dart';
 import 'tabs/tab_solicitudes_adopter.dart';
@@ -33,6 +34,8 @@ class _HomeAdopterScreenState extends State<HomeAdopterScreen> {
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => di.sl<AdopterProfileBloc>()),
+        // Bloc dedicado para solicitudes del adoptante (carga lista y abre chat cuando se apruebe)
+        BlocProvider(create: (_) => di.sl<AdoptionBloc>()),
       ],
       child: Scaffold(
         body: _pages[_selectedIndex],

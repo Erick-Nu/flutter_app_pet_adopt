@@ -5,6 +5,7 @@ import '../../domain/repositories/adoption_repository.dart';
 
 abstract class AdoptionEvent {}
 class LoadFoundationRequests extends AdoptionEvent { final String foundationId; LoadFoundationRequests(this.foundationId); }
+class LoadAdopterRequests extends AdoptionEvent { final String adopterId; LoadAdopterRequests(this.adopterId); }
 class CreateRequestEvent extends AdoptionEvent { 
   final String petId, foundationId, adopterId;
   CreateRequestEvent(this.petId, this.foundationId, this.adopterId);
@@ -32,6 +33,7 @@ class AdoptionBloc extends Bloc<AdoptionEvent, AdoptionState> {
 
   AdoptionBloc(this.repository) : super(AdoptionInitial()) {
     on<LoadFoundationRequests>(_onLoadFoundationRequests);
+    on<LoadAdopterRequests>(_onLoadAdopterRequests);
     on<CreateRequestEvent>(_onCreateRequest);
     on<RespondRequestEvent>(_onRespondRequest);
   }
@@ -40,6 +42,16 @@ class AdoptionBloc extends Bloc<AdoptionEvent, AdoptionState> {
     emit(AdoptionLoading());
     try {
       final reqs = await repository.getRequestsForFoundation(event.foundationId);
+      emit(AdoptionLoaded(reqs));
+    } catch (e) {
+      emit(AdoptionError("Error cargando solicitudes: $e"));
+    }
+  }
+
+  Future<void> _onLoadAdopterRequests(LoadAdopterRequests event, Emitter<AdoptionState> emit) async {
+    emit(AdoptionLoading());
+    try {
+      final reqs = await repository.getRequestsForAdopter(event.adopterId);
       emit(AdoptionLoaded(reqs));
     } catch (e) {
       emit(AdoptionError("Error cargando solicitudes: $e"));
