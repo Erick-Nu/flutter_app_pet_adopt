@@ -7,6 +7,7 @@ import 'src/core/di/injection_container.dart' as di;
 import 'src/core/theme/app_theme.dart';
 import 'src/core/utils/snackbar_utils.dart';
 import 'src/core/widgets/app_loader.dart';
+import 'src/core/services/notification_service.dart';
 import 'src/features/auth/presentation/bloc/auth_bloc.dart';
 import 'src/features/auth/presentation/bloc/auth_event.dart';
 import 'src/features/auth/presentation/bloc/auth_state.dart';
@@ -14,6 +15,7 @@ import 'src/features/auth/presentation/screens/welcome_screen.dart';
 import 'src/features/adoptions/presentation/screens/home_adopter_screen.dart';
 import 'src/features/foundations/presentation/screens/home_foundation_screen.dart';
 import 'src/features/pets/presentation/bloc/pet_bloc.dart';
+import 'src/features/adoptions/presentation/bloc/adoption_bloc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +39,8 @@ void main() async {
 
   await di.initDependencies();
 
+  await NotificationService().init();
+
   runApp(const MyApp());
 }
 
@@ -52,6 +56,9 @@ class MyApp extends StatelessWidget {
         ),
         BlocProvider(
           create: (_) => di.sl<PetBloc>(),
+        ),
+        BlocProvider(
+          create: (_) => di.sl<AdoptionBloc>(),
         ),
       ],
       child: MaterialApp(

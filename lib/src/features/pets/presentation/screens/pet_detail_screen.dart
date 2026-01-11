@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/services/pdf_generator_service.dart';
 import '../../../../core/utils/snackbar_utils.dart';
@@ -8,6 +9,7 @@ import '../bloc/pet_bloc.dart';
 import '../bloc/pet_state.dart';
 import '../../../../core/widgets/app_loader.dart';
 import 'create_pet/pet_creation_wizard.dart';
+import '../../../adoptions/presentation/bloc/adoption_bloc.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final PetEntity pet;
@@ -120,7 +122,16 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     // Galería Grid (excluyendo la primera imagen si hay más de una, para variedad)
     final List<String> galleryImages = allImages.length > 1 ? allImages.sublist(1) : [];
 
-    return Scaffold(
+    return BlocListener<AdoptionBloc, AdoptionState>(
+      listenWhen: (_, state) => widget.isAdopterView && (state is AdoptionActionSuccess || state is AdoptionError),
+      listener: (context, state) {
+        if (state is AdoptionActionSuccess) {
+          showAppSnackBar(context, message: state.message, type: AppSnackBarType.success);
+        } else if (state is AdoptionError) {
+          showAppSnackBar(context, message: state.message, type: AppSnackBarType.error);
+        }
+      },
+      child: Scaffold(
         backgroundColor: AppTheme.background,
         body: CustomScrollView(
           slivers: [
@@ -431,7 +442,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
-      );
+      ),
+    );
   }
 
   // --- WIDGETS AUXILIARES ---
@@ -698,10 +710,14 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   }
 
   void _initiateAdoptionChat(BuildContext context) {
-    showAppSnackBar(
-      context,
-      message: "Próximamente: Chat de adopción",
-      type: AppSnackBarType.info,
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      showAppSnackBar(context, message: 'Inicia sesión para enviar solicitudes.', type: AppSnackBarType.error);
+      return;
+    }
+
+    context.read<AdoptionBloc>().add(
+      CreateRequestEvent(widget.pet.id, widget.pet.fundacionId, userId),
     );
   }
 }

@@ -12,21 +12,7 @@ import '../bloc/profile/foundation_profile_state.dart';
 import 'tabs/tab_inicio.dart';
 import 'tabs/tab_mascotas.dart';
 import 'tabs/tab_profile.dart';
-
-
-
-class TabSolicitudes extends StatelessWidget {
-  const TabSolicitudes({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text('📄 Solicitudes (Próximamente)', style: TextStyle(fontSize: 18, color: Colors.grey)),
-    );
-  }
-}
-
-
+import 'tabs/tab_solicitudes_foundation.dart';
 
 // -----------------------------------------------------------------------------
 // PANTALLA PRINCIPAL (SCAFFOLD)
@@ -46,7 +32,7 @@ class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
   final List<Widget> _tabs = [
     const TabInicio(),
     const TabMascotas(),
-    const TabSolicitudes(),
+    const TabSolicitudesFoundation(),
     const TabPerfilFundacion(),
   ];
 

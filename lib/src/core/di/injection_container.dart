@@ -28,6 +28,9 @@ import '../../features/adoptions/presentation/bloc/adopter_profile_bloc.dart';
 import '../../features/adoptions/domain/repositories/adopter_repository.dart';
 import '../../features/adoptions/data/repositories/adopter_repository_impl.dart';
 import '../../features/adoptions/data/datasources/adopter_remote_data_source.dart';
+import '../../features/adoptions/domain/repositories/adoption_repository.dart';
+import '../../features/adoptions/data/repositories/adoption_repository_impl.dart';
+import '../../features/adoptions/presentation/bloc/adoption_bloc.dart';
 
 
 final sl = GetIt.instance; // Service Locator
@@ -103,6 +106,13 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<AdopterRemoteDataSource>(
     () => AdopterRemoteDataSourceImpl(sl()),
   );
+
+  // Adoption Requests
+  sl.registerLazySingleton<AdoptionRepository>(
+    () => AdoptionRepositoryImpl(sl()),
+  );
+
+  sl.registerFactory(() => AdoptionBloc(sl()));
 
   // ================= FEATURE: AUTH =================
   
