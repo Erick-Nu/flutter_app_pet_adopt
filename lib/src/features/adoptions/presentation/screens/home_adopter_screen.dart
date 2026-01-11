@@ -7,6 +7,7 @@ import 'tabs/tab_inicio_adopter.dart';
 import 'tabs/tab_mapa_adopter.dart';
 import 'tabs/tab_solicitudes_adopter.dart';
 import 'tabs/tab_perfil_adopter.dart';
+import 'tabs/tab_chat_adopter.dart';
 
 class HomeAdopterScreen extends StatefulWidget {
   const HomeAdopterScreen({super.key});
@@ -22,7 +23,7 @@ class _HomeAdopterScreenState extends State<HomeAdopterScreen> {
   final List<Widget> _pages = [
     const TabInicioAdopter(),      // 0. Inicio
     const TabMapaAdopter(),        // 1. Mapa
-    const Center(child: Text("Chat IA (Próximamente)")), // 2. IA
+    const TabChatAdopter(),        // 2. IA
     const TabSolicitudesAdopter(), // 3. Solicitudes
     const TabPerfilAdopter(),      // 4. Perfil
   ];
