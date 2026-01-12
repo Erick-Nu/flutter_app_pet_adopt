@@ -5,6 +5,7 @@ import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_event.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
+import '../../../../auth/presentation/screens/welcome_screen.dart';
 import '../../bloc/adopter_profile_bloc.dart';
 import '../../bloc/adopter_profile_state.dart';
 import '../perfil/edit_perfil_adopter_screen.dart';
@@ -38,132 +39,143 @@ class TabPerfilAdopter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, authState) {
-        // Datos básicos desde Auth
-        final userEmail = (authState is AuthAuthenticated) ? authState.user.email : "cargando...";
-
-        // Datos extendidos desde el perfil del adoptante
-        final profileState = context.watch<AdopterProfileBloc>().state;
-        String displayName = "Adoptante";
-        String? avatarUrl;
-
-        if (profileState is AdopterProfileLoaded) {
-          displayName = profileState.adopter.nombre;
-          avatarUrl = profileState.adopter.avatarUrl;
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        // Cuando el usuario cierra sesión, navegamos a WelcomeScreen
+        if (state is AuthUnauthenticated) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+            (route) => false,
+          );
         }
+      },
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, authState) {
+          // Datos básicos desde Auth
+          final userEmail = (authState is AuthAuthenticated) ? authState.user.email : "cargando...";
 
-        return Scaffold(
-          backgroundColor: AppTheme.background,
-          body: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 32), // Espacio superior
+          // Datos extendidos desde el perfil del adoptante
+          final profileState = context.watch<AdopterProfileBloc>().state;
+          String displayName = "Adoptante";
+          String? avatarUrl;
 
-                  // --- 1. HEADER TIPO TARJETA FLOTANTE ---
-                  _buildHorizontalHeader(context, displayName, userEmail, avatarUrl),
+          if (profileState is AdopterProfileLoaded) {
+            displayName = profileState.adopter.nombre;
+            avatarUrl = profileState.adopter.avatarUrl;
+          }
 
-                  // --- 2. OPCIONES DE MENÚ ---
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Sección: Mi Cuenta
-                        _buildSectionTitle("Mi Cuenta"),
-                        const SizedBox(height: 10),
-                        _buildMenuContainer([
-                          _buildMenuItem(
-                            icon: Icons.person_rounded,
-                            title: "Editar Perfil",
-                            subtitle: "Foto, nombre y teléfono",
-                            onTap: () {
-                              final state = context.read<AdopterProfileBloc>().state;
-                              if (state is AdopterProfileLoaded) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => BlocProvider.value(
-                                      value: context.read<AdopterProfileBloc>(),
-                                      child: EditPerfilAdopterScreen(
-                                        adopter: state.adopter,
+          return Scaffold(
+            backgroundColor: AppTheme.background,
+            body: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 32), // Espacio superior
+
+                    // --- 1. HEADER TIPO TARJETA FLOTANTE ---
+                    _buildHorizontalHeader(context, displayName, userEmail, avatarUrl),
+
+                    // --- 2. OPCIONES DE MENÚ ---
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Sección: Mi Cuenta
+                          _buildSectionTitle("Mi Cuenta"),
+                          const SizedBox(height: 10),
+                          _buildMenuContainer([
+                            _buildMenuItem(
+                              icon: Icons.person_rounded,
+                              title: "Editar Perfil",
+                              subtitle: "Foto, nombre y teléfono",
+                              onTap: () {
+                                final state = context.read<AdopterProfileBloc>().state;
+                                if (state is AdopterProfileLoaded) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => BlocProvider.value(
+                                        value: context.read<AdopterProfileBloc>(),
+                                        child: EditPerfilAdopterScreen(
+                                          adopter: state.adopter,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              } else {
-                                showAppSnackBar(
-                                  context,
-                                  message: 'Perfil aún cargando...',
-                                  type: AppSnackBarType.info,
-                                );
-                              }
-                            },
-                          ),
-                          _buildDivider(),
-                          _buildMenuItem(
-                            icon: Icons.folder_shared_rounded,
-                            title: "Mis Solicitudes",
-                            subtitle: "Estado de tus adopciones",
-                            // iconColor removido -> usa el default (Naranja)
-                            onTap: () {
-                              // TODO: Navegar al Tab de Solicitudes
-                            },
-                          ),
-                          _buildDivider(),
-                          _buildMenuItem(
-                            icon: Icons.favorite_rounded,
-                            title: "Favoritos",
-                            subtitle: "Mascotas guardadas",
-                            // iconColor removido -> usa el default (Naranja)
-                            onTap: () {},
-                          ),
-                        ]),
+                                  );
+                                } else {
+                                  showAppSnackBar(
+                                    context,
+                                    message: 'Perfil aún cargando...',
+                                    type: AppSnackBarType.info,
+                                  );
+                                }
+                              },
+                            ),
+                            _buildDivider(),
+                            _buildMenuItem(
+                              icon: Icons.folder_shared_rounded,
+                              title: "Mis Solicitudes",
+                              subtitle: "Estado de tus adopciones",
+                              // iconColor removido -> usa el default (Naranja)
+                              onTap: () {
+                                // TODO: Navegar al Tab de Solicitudes
+                              },
+                            ),
+                            _buildDivider(),
+                            _buildMenuItem(
+                              icon: Icons.favorite_rounded,
+                              title: "Favoritos",
+                              subtitle: "Mascotas guardadas",
+                              // iconColor removido -> usa el default (Naranja)
+                              onTap: () {},
+                            ),
+                          ]),
 
-                        const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                        // Sección: Configuración
-                        _buildSectionTitle("Configuración & Ayuda"),
-                        const SizedBox(height: 10),
-                        _buildMenuContainer([
-                          _buildMenuItem(
-                            icon: Icons.notifications_none_rounded,
-                            title: "Notificaciones",
-                            onTap: () {},
+                          // Sección: Configuración
+                          _buildSectionTitle("Configuración & Ayuda"),
+                          const SizedBox(height: 10),
+                          _buildMenuContainer([
+                            _buildMenuItem(
+                              icon: Icons.notifications_none_rounded,
+                              title: "Notificaciones",
+                              onTap: () {},
+                            ),
+                            _buildDivider(),
+                            _buildMenuItem(
+                              icon: Icons.privacy_tip_outlined,
+                              title: "Privacidad y Seguridad",
+                              onTap: () {},
+                            ),
+                            _buildDivider(),
+                            _buildMenuItem(
+                              icon: Icons.help_outline_rounded,
+                              title: "Ayuda y Soporte",
+                              onTap: () {},
+                            ),
+                          ]),
+                          
+                          const SizedBox(height: 30),
+                          
+                          // Versión de la app
+                          Center(
+                            child: Text(
+                              "PetAdopt v1.0.0",
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                            ),
                           ),
-                          _buildDivider(),
-                          _buildMenuItem(
-                            icon: Icons.privacy_tip_outlined,
-                            title: "Privacidad y Seguridad",
-                            onTap: () {},
-                          ),
-                          _buildDivider(),
-                          _buildMenuItem(
-                            icon: Icons.help_outline_rounded,
-                            title: "Ayuda y Soporte",
-                            onTap: () {},
-                          ),
-                        ]),
-                        
-                        const SizedBox(height: 30),
-                        
-                        // Versión de la app
-                        Center(
-                          child: Text(
-                            "PetAdopt v1.0.0",
-                            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

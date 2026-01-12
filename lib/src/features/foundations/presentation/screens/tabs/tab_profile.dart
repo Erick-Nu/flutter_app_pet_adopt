@@ -5,6 +5,7 @@ import '../../../../../core/utils/snackbar_utils.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_event.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
+import '../../../../auth/presentation/screens/welcome_screen.dart';
 import '../../bloc/profile/foundation_profile_bloc.dart';
 import '../../bloc/profile/foundation_profile_state.dart';
 import '../profile/edit_foundation_profile_screen.dart';
@@ -38,118 +39,129 @@ class TabPerfilFundacion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, authState) {
-        // Email desde autenticación
-        final userEmail = (authState is AuthAuthenticated) ? authState.user.email : "cargando...";
-
-        // Nombre y logo desde perfil de fundación
-        final profileState = context.watch<FoundationProfileBloc>().state;
-        String displayName = "Fundación";
-        String? logoUrl;
-        if (profileState is ProfileLoaded) {
-          displayName = profileState.foundation.nombre;
-          logoUrl = profileState.foundation.logoUrl;
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        // Cuando el usuario cierra sesión, navegamos a WelcomeScreen
+        if (state is AuthUnauthenticated) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+            (route) => false,
+          );
         }
+      },
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, authState) {
+          // Email desde autenticación
+          final userEmail = (authState is AuthAuthenticated) ? authState.user.email : "cargando...";
 
-        return Scaffold(
-          backgroundColor: AppTheme.background,
-          body: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 32), // <--- ESPACIO AUMENTADO AQUI
+          // Nombre y logo desde perfil de fundación
+          final profileState = context.watch<FoundationProfileBloc>().state;
+          String displayName = "Fundación";
+          String? logoUrl;
+          if (profileState is ProfileLoaded) {
+            displayName = profileState.foundation.nombre;
+            logoUrl = profileState.foundation.logoUrl;
+          }
 
-                  // --- 1. HEADER TIPO TARJETA FLOTANTE ---
-                  _buildHorizontalHeader(context, displayName, userEmail, logoUrl),
+          return Scaffold(
+            backgroundColor: AppTheme.background,
+            body: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 32), // <--- ESPACIO AUMENTADO AQUI
 
-                  // --- 2. OPCIONES DE MENÚ ---
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionTitle("Gestión de Organización"),
-                        const SizedBox(height: 10),
-                        _buildMenuContainer([
-                          _buildMenuItem(
-                            icon: Icons.business_rounded,
-                            title: "Editar Perfil",
-                            subtitle: "Logo, dirección y contacto",
-                            onTap: () {
-                              final state = context.read<FoundationProfileBloc>().state;
-                              if (state is ProfileLoaded) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => BlocProvider.value(
-                                      value: context.read<FoundationProfileBloc>(),
-                                      child: EditFoundationProfileScreen(
-                                        foundation: state.foundation,
+                    // --- 1. HEADER TIPO TARJETA FLOTANTE ---
+                    _buildHorizontalHeader(context, displayName, userEmail, logoUrl),
+
+                    // --- 2. OPCIONES DE MENÚ ---
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle("Gestión de Organización"),
+                          const SizedBox(height: 10),
+                          _buildMenuContainer([
+                            _buildMenuItem(
+                              icon: Icons.business_rounded,
+                              title: "Editar Perfil",
+                              subtitle: "Logo, dirección y contacto",
+                              onTap: () {
+                                final state = context.read<FoundationProfileBloc>().state;
+                                if (state is ProfileLoaded) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => BlocProvider.value(
+                                        value: context.read<FoundationProfileBloc>(),
+                                        child: EditFoundationProfileScreen(
+                                          foundation: state.foundation,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              } else {
-                                showAppSnackBar(
-                                  context,
-                                  message: 'Perfil de fundación aún cargando',
-                                  type: AppSnackBarType.info,
-                                );
-                              }
-                            },
-                          ),
-                          _buildDivider(),
-                          _buildMenuItem(
-                            icon: Icons.verified_user_rounded,
-                            title: "Estado de Verificación",
-                            subtitle: "Cuenta verificada",
-                            iconColor: Colors.green,
-                            onTap: () {},
-                          ),
-                        ]),
+                                  );
+                                } else {
+                                  showAppSnackBar(
+                                    context,
+                                    message: 'Perfil de fundación aún cargando',
+                                    type: AppSnackBarType.info,
+                                  );
+                                }
+                              },
+                            ),
+                            _buildDivider(),
+                            _buildMenuItem(
+                              icon: Icons.verified_user_rounded,
+                              title: "Estado de Verificación",
+                              subtitle: "Cuenta verificada",
+                              iconColor: Colors.green,
+                              onTap: () {},
+                            ),
+                          ]),
 
-                        const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                        _buildSectionTitle("Configuración & Ayuda"),
-                        const SizedBox(height: 10),
-                        _buildMenuContainer([
-                          _buildMenuItem(
-                            icon: Icons.notifications_none_rounded,
-                            title: "Notificaciones",
-                            onTap: () {},
+                          _buildSectionTitle("Configuración & Ayuda"),
+                          const SizedBox(height: 10),
+                          _buildMenuContainer([
+                            _buildMenuItem(
+                              icon: Icons.notifications_none_rounded,
+                              title: "Notificaciones",
+                              onTap: () {},
+                            ),
+                            _buildDivider(),
+                            _buildMenuItem(
+                              icon: Icons.lock_outline_rounded,
+                              title: "Seguridad",
+                              onTap: () {},
+                            ),
+                            _buildDivider(),
+                            _buildMenuItem(
+                              icon: Icons.help_outline_rounded,
+                              title: "Soporte Técnico",
+                              onTap: () {},
+                            ),
+                          ]),
+                          
+                          const SizedBox(height: 30),
+                          
+                          Center(
+                            child: Text(
+                              "PetAdopt v1.0.0",
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                            ),
                           ),
-                          _buildDivider(),
-                          _buildMenuItem(
-                            icon: Icons.lock_outline_rounded,
-                            title: "Seguridad",
-                            onTap: () {},
-                          ),
-                          _buildDivider(),
-                          _buildMenuItem(
-                            icon: Icons.help_outline_rounded,
-                            title: "Soporte Técnico",
-                            onTap: () {},
-                          ),
-                        ]),
-                        
-                        const SizedBox(height: 30),
-                        
-                        Center(
-                          child: Text(
-                            "PetAdopt v1.0.0",
-                            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

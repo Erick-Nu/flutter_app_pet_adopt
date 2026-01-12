@@ -206,6 +206,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     // 9. Logout
     on<AuthLogoutRequested>((event, emit) async {
+      emit(AuthLoading());
       try {
         await Supabase.instance.client.auth.signOut();
         LoggerService.info('Sesión cerrada exitosamente', context: 'AuthLogoutRequested');
