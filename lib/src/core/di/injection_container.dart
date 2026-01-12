@@ -9,6 +9,7 @@ import '../../features/auth/domain/usecases/register_adoptante_usecase.dart';
 import '../../features/auth/domain/usecases/register_fundacion_usecase.dart';
 import '../../features/auth/domain/usecases/recover_password_usecase.dart';
 import '../../features/auth/domain/usecases/check_auth_status_usecase.dart';
+import '../../features/auth/domain/usecases/get_user_role_usecase.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../services/supabase_service.dart';
 import '../../features/pets/presentation/bloc/pet_bloc.dart';
@@ -50,6 +51,8 @@ Future<void> initDependencies() async {
     registerFundacionUseCase: sl(),
     recoverPasswordUseCase: sl(),
     checkAuthStatusUseCase: sl(),
+    getUserRoleUseCase: sl(),
+    authRepository: sl(),
   ));
 
   sl.registerFactory(() => PetBloc(
@@ -70,6 +73,7 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => RegisterFundacionUseCase(sl()));
   sl.registerLazySingleton(() => RecoverPasswordUseCase(sl()));
   sl.registerLazySingleton(() => CheckAuthStatusUseCase(sl()));
+  sl.registerLazySingleton(() => GetUserRoleUseCase());
 
   // Use Cases
   sl.registerLazySingleton(() => GetAllAvailablePetsUseCase(sl()));

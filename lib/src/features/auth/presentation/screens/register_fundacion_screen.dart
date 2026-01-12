@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -7,9 +8,17 @@ import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import 'login_screen.dart';
+import '../../domain/entities/user_entity.dart';
 
 class RegisterFundacionScreen extends StatefulWidget {
-  const RegisterFundacionScreen({super.key});
+  final bool isGoogleAuth;
+  final UserEntity? googleUser;
+
+  const RegisterFundacionScreen({
+    super.key,
+    this.isGoogleAuth = false,
+    this.googleUser,
+  });
 
   @override
   State<RegisterFundacionScreen> createState() => _RegisterFundacionScreenState();
@@ -28,6 +37,24 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
   final _passCtrl = TextEditingController();
   
   bool _isPassVisible = false;
+  String? _avatarUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isGoogleAuth) {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      final metadata = currentUser?.userMetadata ?? {};
+      final googleEmail = widget.googleUser?.email;
+
+      _nombreCtrl.text = (metadata['full_name'] as String?)
+              ?? (metadata['name'] as String?)
+              ?? googleEmail?.split('@').first
+              ?? '';
+      _emailCtrl.text = googleEmail ?? currentUser?.email ?? '';
+      _avatarUrl = metadata['avatar_url'] as String?;
+    }
+  }
 
   @override
   void dispose() {
@@ -42,15 +69,26 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
     if (_formKey.currentState!.validate()) {
       FocusScope.of(context).unfocus();
 
-      // Disparamos el evento específico para Fundaciones
-      context.read<AuthBloc>().add(
-        AuthRegisterFundacionRequested(
-          email: _emailCtrl.text.trim(),
-          password: _passCtrl.text.trim(),
-          nombre: _nombreCtrl.text.trim(),
-          telefono: _telefonoCtrl.text.trim(),
-        ),
-      );
+      if (widget.isGoogleAuth) {
+        // REGISTRO DESDE GOOGLE
+        context.read<AuthBloc>().add(
+          CreateGoogleProfileFundacion({
+            'nombre': _nombreCtrl.text.trim(),
+            'direccion': _telefonoCtrl.text.trim(),
+            'logo_url': _avatarUrl,
+          }),
+        );
+      } else {
+        // REGISTRO NORMAL
+        context.read<AuthBloc>().add(
+          AuthRegisterFundacionRequested(
+            email: _emailCtrl.text.trim(),
+            password: _passCtrl.text.trim(),
+            nombre: _nombreCtrl.text.trim(),
+            telefono: _telefonoCtrl.text.trim(),
+          ),
+        );
+      }
     }
   }
 
@@ -98,18 +136,27 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
               type: AppSnackBarType.error,
             );
           } else if (state is AuthAuthenticated) {
-            // Logout forzado para obligar verificación de correo
-            context.read<AuthBloc>().add(AuthLogoutRequested());
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
-              (route) => false,
-            );
-            showAppSnackBar(
-              context,
-              message: "Fundación registrada. Revisa tu correo para activar la cuenta.",
-              type: AppSnackBarType.success,
-            );
+            if (widget.isGoogleAuth) {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              showAppSnackBar(
+                context,
+                message: "Perfil de fundación creado con Google.",
+                type: AppSnackBarType.success,
+              );
+            } else {
+              // Logout forzado para obligar verificación de correo
+              context.read<AuthBloc>().add(AuthLogoutRequested());
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+              showAppSnackBar(
+                context,
+                message: "Fundación registrada. Revisa tu correo para activar la cuenta.",
+                type: AppSnackBarType.success,
+              );
+            }
           }
         },
         child: SafeArea(
@@ -163,34 +210,36 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
                       validator: (v) => (v == null || v.isEmpty) ? 'El teléfono es requerido' : null,
                     ),
 
-                    _buildTextField(
-                      controller: _emailCtrl,
-                      label: 'Correo Institucional',
-                      icon: Icons.email_outlined,
-                      type: TextInputType.emailAddress,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'El correo es requerido';
-                        if (!_emailRegex.hasMatch(v)) return 'Formato de correo inválido';
-                        return null;
-                      },
-                    ),
-
-                    _buildTextField(
-                      controller: _passCtrl,
-                      label: 'Contraseña',
-                      icon: Icons.lock_outline_rounded,
-                      obscureText: !_isPassVisible,
-                      action: TextInputAction.done,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _isPassVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-                          color: AppTheme.textSecondary,
-                        ),
-                        onPressed: () => setState(() => _isPassVisible = !_isPassVisible),
+                    if (!widget.isGoogleAuth)
+                      _buildTextField(
+                        controller: _emailCtrl,
+                        label: 'Correo Institucional',
+                        icon: Icons.email_outlined,
+                        type: TextInputType.emailAddress,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'El correo es requerido';
+                          if (!_emailRegex.hasMatch(v)) return 'Formato de correo inválido';
+                          return null;
+                        },
                       ),
-                      // Validación de seguridad: Mínimo 8 caracteres
-                      validator: (v) => (v == null || v.length < 8) ? 'Mínimo 8 caracteres' : null,
-                    ),
+
+                    if (!widget.isGoogleAuth)
+                      _buildTextField(
+                        controller: _passCtrl,
+                        label: 'Contraseña',
+                        icon: Icons.lock_outline_rounded,
+                        obscureText: !_isPassVisible,
+                        action: TextInputAction.done,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPassVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                            color: AppTheme.textSecondary,
+                          ),
+                          onPressed: () => setState(() => _isPassVisible = !_isPassVisible),
+                        ),
+                        // Validación de seguridad: Mínimo 8 caracteres
+                        validator: (v) => (v == null || v.length < 8) ? 'Mínimo 8 caracteres' : null,
+                      ),
 
                     const SizedBox(height: 24),
 

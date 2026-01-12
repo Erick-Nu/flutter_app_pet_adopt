@@ -14,6 +14,11 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<bool> signInWithGoogle() async {
+    return await remoteDataSource.signInWithGoogle();
+  }
+
+  @override
   Future<UserEntity> registerAdoptante({
     required String email,
     required String password,
@@ -43,6 +48,16 @@ class AuthRepositoryImpl implements AuthRepository {
       nombre: nombre,
       telefono: telefono,
     );
+  }
+
+  @override
+  Future<void> createAdoptanteProfile(String userId, Map<String, dynamic> data) async {
+    return await remoteDataSource.createAdoptanteProfile(userId, data);
+  }
+
+  @override
+  Future<void> createFundacionProfile(String userId, Map<String, dynamic> data) async {
+    return await remoteDataSource.createFundacionProfile(userId, data);
   }
 
   @override

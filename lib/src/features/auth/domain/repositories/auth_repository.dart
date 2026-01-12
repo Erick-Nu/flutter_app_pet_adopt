@@ -4,6 +4,9 @@ abstract class AuthRepository {
   /// Iniciar sesión con email y contraseña
   Future<UserEntity> login(String email, String password);
 
+  /// Iniciar sesión con Google OAuth
+  Future<bool> signInWithGoogle();
+
   /// Registrar un Adoptante (Crea Auth + Insert en tabla public.adoptantes)
   Future<UserEntity> registerAdoptante({
     required String email,
@@ -20,6 +23,12 @@ abstract class AuthRepository {
     required String nombre,
     String? telefono,
   });
+
+  /// Crear perfil adoptante desde Google (usuario ya existe en Auth)
+  Future<void> createAdoptanteProfile(String userId, Map<String, dynamic> data);
+
+  /// Crear perfil fundación desde Google (usuario ya existe en Auth)
+  Future<void> createFundacionProfile(String userId, Map<String, dynamic> data);
 
   /// Enviar correo de recuperación
   Future<void> recoverPassword(String email);

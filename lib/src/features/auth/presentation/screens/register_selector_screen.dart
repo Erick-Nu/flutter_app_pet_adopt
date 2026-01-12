@@ -4,9 +4,17 @@ import '../../../../core/widgets/role_option_card.dart';
 import 'register_adoptante_screen.dart';
 import 'register_fundacion_screen.dart';
 import 'login_screen.dart';
+import '../../domain/entities/user_entity.dart';
 
 class RegisterSelectorScreen extends StatelessWidget {
-  const RegisterSelectorScreen({super.key});
+    final bool isGoogleAuth;
+    final UserEntity? googleUser;
+    
+    const RegisterSelectorScreen({
+      super.key,
+      this.isGoogleAuth = false,
+      this.googleUser,
+    });
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +60,12 @@ class RegisterSelectorScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const RegisterAdoptanteScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => RegisterAdoptanteScreen(
+                            isGoogleAuth: isGoogleAuth,
+                            googleUser: googleUser,
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -72,7 +85,12 @@ class RegisterSelectorScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const RegisterFundacionScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => RegisterFundacionScreen(
+                            isGoogleAuth: isGoogleAuth,
+                            googleUser: googleUser,
+                          ),
+                        ),
                       );
                     },
                   ),

@@ -12,6 +12,7 @@ import 'src/features/auth/presentation/bloc/auth_bloc.dart';
 import 'src/features/auth/presentation/bloc/auth_event.dart';
 import 'src/features/auth/presentation/bloc/auth_state.dart';
 import 'src/features/auth/presentation/screens/welcome_screen.dart';
+import 'src/features/auth/presentation/screens/register_selector_screen.dart';
 import 'src/features/adoptions/presentation/screens/home_adopter_screen.dart';
 import 'src/features/foundations/presentation/screens/home_foundation_screen.dart';
 import 'src/features/pets/presentation/bloc/pet_bloc.dart';
@@ -98,6 +99,27 @@ class AuthWrapper extends StatelessWidget {
                   Text('Cargando...'),
                 ],
               ),
+            ),
+          );
+        }
+        
+        if (state is AuthenticatedNoProfile) {
+          // Usuario vino con Google pero no tiene perfil aún
+          // Lo enviamos a elegir adoptante o fundación
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RegisterSelectorScreen(
+                  isGoogleAuth: true,
+                  googleUser: state.user,
+                ),
+              ),
+            );
+          });
+          return const Scaffold(
+            body: Center(
+              child: AppLoader(),
             ),
           );
         }

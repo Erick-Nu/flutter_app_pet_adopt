@@ -15,6 +15,26 @@ class AuthLoginRequested extends AuthEvent {
   List<Object?> get props => [email, password];
 }
 
+class LoginWithGoogleRequested extends AuthEvent {
+  const LoginWithGoogleRequested();
+}
+
+class CreateGoogleProfileAdoptante extends AuthEvent {
+  final Map<String, dynamic> data;
+  const CreateGoogleProfileAdoptante(this.data);
+  
+  @override
+  List<Object?> get props => [data];
+}
+
+class CreateGoogleProfileFundacion extends AuthEvent {
+  final Map<String, dynamic> data;
+  const CreateGoogleProfileFundacion(this.data);
+  
+  @override
+  List<Object?> get props => [data];
+}
+
 class AuthRegisterAdoptanteRequested extends AuthEvent {
   final String email;
   final String password;

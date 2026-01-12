@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../domain/usecases/login_usecase.dart';
@@ -5,6 +6,9 @@ import '../../domain/usecases/register_adoptante_usecase.dart';
 import '../../domain/usecases/register_fundacion_usecase.dart';
 import '../../domain/usecases/recover_password_usecase.dart';
 import '../../domain/usecases/check_auth_status_usecase.dart';
+import '../../domain/usecases/get_user_role_usecase.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../../domain/entities/user_entity.dart';
 import '../../../../core/services/logger_service.dart';
 
 import 'auth_event.dart';
@@ -16,6 +20,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final RegisterFundacionUseCase registerFundacionUseCase;
   final RecoverPasswordUseCase recoverPasswordUseCase;
   final CheckAuthStatusUseCase checkAuthStatusUseCase;
+  final GetUserRoleUseCase getUserRoleUseCase;
+  final AuthRepository authRepository;
+  
+  StreamSubscription? _authSubscription;
 
   AuthBloc({
     required this.loginUseCase,
@@ -23,26 +31,38 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.registerFundacionUseCase,
     required this.recoverPasswordUseCase,
     required this.checkAuthStatusUseCase,
+    required this.getUserRoleUseCase,
+    required this.authRepository,
   }) : super(AuthInitial()) {
+    _startAuthListener();
     
     // 1. Login
     on<AuthLoginRequested>((event, emit) async {
       emit(AuthLoading());
       try {
         LoggerService.auth('Ejecutando LoginUseCase', data: {'email': event.email});
-        
-        // Primero hacemos el login (auth.signInWithPassword)
         await loginUseCase(event.email, event.password);
-        
-        // DESPUÉS: Usamos el caso de uso para obtener el rol correcto
-        // Esto asegura que AuthAuthenticated siempre tenga el 'type' correcto
         final userWithRole = await checkAuthStatusUseCase();
         
         if (userWithRole != null) {
-          LoggerService.success('Login exitoso con rol: ${userWithRole.type}', context: 'AuthBloc');
-          emit(AuthAuthenticated(userWithRole));
+          var resolvedType = userWithRole.type;
+          if (resolvedType == null || resolvedType == 'unknown') {
+            resolvedType = await getUserRoleUseCase(userWithRole.id);
+          }
+          final hydratedUser = UserEntity(
+            id: userWithRole.id,
+            email: userWithRole.email,
+            type: resolvedType,
+          );
+
+          if (hydratedUser.type == null) {
+            LoggerService.info('Usuario autenticado sin perfil. Redirigiendo a selector.', context: 'AuthBloc');
+            emit(AuthenticatedNoProfile(hydratedUser));
+          } else {
+            LoggerService.success('Login exitoso con rol: ${hydratedUser.type}', context: 'AuthBloc');
+            emit(AuthAuthenticated(hydratedUser));
+          }
         } else {
-          // Caso raro: login exitoso pero falla al obtener datos
           LoggerService.error('Error al obtener perfil de usuario', context: 'AuthBloc');
           emit(AuthError("Error al obtener perfil de usuario"));
         }
@@ -71,7 +91,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     
     // 3. Registro Fundación
     on<AuthRegisterFundacionRequested>((event, emit) async {
-        emit(AuthLoading());
+      emit(AuthLoading());
       try {
         final user = await registerFundacionUseCase(
           email: event.email,
@@ -85,22 +105,94 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     });
 
-    // 4. Recuperar Contraseña
+    // 4. Google Sign In
+    on<LoginWithGoogleRequested>((event, emit) async {
+      emit(AuthLoading());
+      try {
+        LoggerService.auth('Ejecutando LoginWithGoogleRequested', data: {});
+        await authRepository.signInWithGoogle();
+        LoggerService.success('Google Sign In iniciado', context: 'AuthBloc');
+      } catch (e) {
+        LoggerService.error('Error en Google Sign In', context: 'AuthBloc', error: e);
+        emit(AuthError(e.toString()));
+      }
+    });
+
+    // 5. Crear Perfil Google Adoptante
+    on<CreateGoogleProfileAdoptante>((event, emit) async {
+      emit(AuthLoading());
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user == null) {
+          emit(const AuthError('Sesión no encontrada'));
+          return;
+        }
+        
+        await authRepository.createAdoptanteProfile(user.id, event.data);
+        final userEntity = UserEntity(
+          id: user.id,
+          email: user.email ?? '',
+          type: 'adoptante',
+        );
+        emit(AuthAuthenticated(userEntity));
+      } catch (e) {
+        LoggerService.error('Error creando perfil adoptante', context: 'AuthBloc', error: e);
+        emit(AuthError(e.toString()));
+      }
+    });
+
+    // 6. Crear Perfil Google Fundación
+    on<CreateGoogleProfileFundacion>((event, emit) async {
+      emit(AuthLoading());
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user == null) {
+          emit(const AuthError('Sesión no encontrada'));
+          return;
+        }
+        
+        await authRepository.createFundacionProfile(user.id, event.data);
+        final userEntity = UserEntity(
+          id: user.id,
+          email: user.email ?? '',
+          type: 'fundacion',
+        );
+        emit(AuthAuthenticated(userEntity));
+      } catch (e) {
+        LoggerService.error('Error creando perfil fundación', context: 'AuthBloc', error: e);
+        emit(AuthError(e.toString()));
+      }
+    });
+
+    // 7. Recuperar Contraseña
     on<AuthRecoverPasswordRequested>(_onRecoverPassword);
 
-    // 5. Verificar Sesión al inicio
+    // 8. Verificar Sesión al inicio
     on<AuthCheckStatus>((event, emit) async {
       emit(AuthLoading());
       try {
         LoggerService.auth('Verificando estado de autenticación', data: {});
-        
-        // Toda la lógica sucia de Supabase.instance... SE BORRA.
-        // Ahora es una sola línea limpia:
         final user = await checkAuthStatusUseCase();
 
         if (user != null) {
-          LoggerService.success('Usuario autenticado: ${user.type}', context: 'AuthCheckStatus');
-          emit(AuthAuthenticated(user));
+          var resolvedType = user.type;
+          if (resolvedType == null || resolvedType == 'unknown') {
+            resolvedType = await getUserRoleUseCase(user.id);
+          }
+
+          final hydratedUser = UserEntity(
+            id: user.id,
+            email: user.email,
+            type: resolvedType,
+          );
+
+          if (hydratedUser.type == null) {
+            LoggerService.info('Usuario autenticado sin perfil. Redirigiendo a selector.', context: 'AuthCheckStatus');
+            emit(AuthenticatedNoProfile(hydratedUser));
+          } else {
+            LoggerService.success('Usuario autenticado: ${hydratedUser.type}', context: 'AuthCheckStatus');
+            emit(AuthAuthenticated(hydratedUser));
+          }
         } else {
           LoggerService.info('Sin sesión activa', context: 'AuthCheckStatus');
           emit(AuthUnauthenticated());
@@ -112,18 +204,28 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     });
 
-    // 6. Logout
+    // 9. Logout
     on<AuthLogoutRequested>((event, emit) async {
       try {
         emit(AuthLoading());
-        // Cerrar sesión en Supabase
         await Supabase.instance.client.auth.signOut();
         LoggerService.info('Sesión cerrada exitosamente', context: 'AuthLogoutRequested');
-        emit(AuthUnauthenticated()); // Esto dispara el AuthWrapper en main.dart
+        emit(AuthUnauthenticated());
       } catch (e) {
         LoggerService.error('Error al cerrar sesión', context: 'AuthLogoutRequested', error: e);
         emit(AuthError('Error al cerrar sesión: $e'));
-        // Aún así emitimos Unauthenticated para poder hacer logout
+        emit(AuthUnauthenticated());
+      }
+    });
+  }
+
+  void _startAuthListener() {
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      if (event.event == AuthChangeEvent.signedIn) {
+        LoggerService.auth('Auth cambió a SignedIn - disparando CheckAuthStatus', data: {});
+        add(AuthCheckStatus());
+      } else if (event.event == AuthChangeEvent.signedOut) {
+        LoggerService.auth('Auth cambió a SignedOut', data: {});
         emit(AuthUnauthenticated());
       }
     });
@@ -131,7 +233,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   // ==================== MÉTODOS DE MANEJO DE EVENTOS ====================
 
-  /// 4. Recuperar Contraseña
+  /// 7. Recuperar Contraseña
   Future<void> _onRecoverPassword(
     AuthRecoverPasswordRequested event,
     Emitter<AuthState> emit,
@@ -147,5 +249,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       LoggerService.error('Error en recuperación de contraseña BLoC', context: 'AuthBloc', error: e, stackTrace: stackTrace);
       emit(AuthError(e.toString()));
     }
+  }
+
+  @override
+  Future<void> close() {
+    _authSubscription?.cancel();
+    return super.close();
   }
 }

@@ -18,6 +18,15 @@ class AuthAuthenticated extends AuthState {
   List<Object> get props => [user];
 }
 
+/// Estado para usuario autenticado pero sin perfil
+/// (Vino con Google u otro OAuth pero no ha seleccionado adopter/fundación)
+class AuthenticatedNoProfile extends AuthState {
+  final UserEntity user;
+  const AuthenticatedNoProfile(this.user);
+  @override
+  List<Object> get props => [user];
+}
+
 class AuthUnauthenticated extends AuthState {}
 
 class AuthError extends AuthState {

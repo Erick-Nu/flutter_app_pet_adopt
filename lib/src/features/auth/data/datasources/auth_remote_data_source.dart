@@ -7,6 +7,8 @@ import '../../../../core/services/logger_service.dart';
 
 abstract class AuthRemoteDataSource {
   Future<UserModel> login(String email, String password);
+
+  Future<bool> signInWithGoogle();
   
   Future<UserModel> registerAdoptante({
     required String email,
@@ -22,6 +24,9 @@ abstract class AuthRemoteDataSource {
     required String nombre,
     String? telefono,
   });
+
+  Future<void> createAdoptanteProfile(String userId, Map<String, dynamic> data);
+  Future<void> createFundacionProfile(String userId, Map<String, dynamic> data);
 
   Future<void> recoverPassword(String email);
   Future<void> logout();
@@ -320,6 +325,82 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       if (fundacion != null) userType = 'fundacion';
     }
     return UserModel(id: userId, email: email, type: userType);
+  }
+
+  // ---------------------------------------------------------------------------
+  // GOOGLE OAUTH
+  // ---------------------------------------------------------------------------
+
+  @override
+  Future<bool> signInWithGoogle() async {
+    try {
+      LoggerService.auth('Iniciando Google Sign In', data: {});
+      
+      // Aquí utilizamos el método de Supabase para OAuth de Google
+      // En mobile, esto abrirá el navegador y retornará a la app con el deep link
+      final result = await supabaseClient.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'io.supabase.flutterquickstart://login-callback',
+      );
+      
+      LoggerService.success('Google Sign In iniciado', context: 'signInWithGoogle');
+      return result;
+    } catch (e) {
+      LoggerService.error('Error en Google Sign In', context: 'signInWithGoogle', error: e);
+      throw Exception('Error al iniciar sesión con Google: $e');
+    }
+  }
+
+  @override
+  Future<void> createAdoptanteProfile(String userId, Map<String, dynamic> data) async {
+    try {
+      LoggerService.auth('Creando perfil adoptante desde Google', data: {
+        'userId': userId,
+        'nombre': data['nombre'],
+      });
+
+      // CORRECCIÓN: 
+      // 1. No enviamos 'email' porque no existe en la tabla 'adoptantes'.
+      // 2. No enviamos 'cedula' porque ahora es opcional (NULL).
+      // 3. No enviamos 'ubicacion' porque no existe en la tabla SQL.
+      await supabaseClient.from('adoptantes').insert({
+        'id': userId,
+        'nombre': data['nombre'],
+        'avatar_url': data['avatar_url'],
+        'sexo': 'hombre', // Valor por defecto (user_sex_enum)
+        'edad': 18, // Valor por defecto
+      });
+
+      LoggerService.success('Perfil adoptante creado', context: 'createAdoptanteProfile');
+    } catch (e) {
+      LoggerService.error('Error creando perfil adoptante', context: 'createAdoptanteProfile', error: e);
+      print("Error detallado al crear adoptante: $e");
+      throw Exception('Error creando perfil adoptante: $e');
+    }
+  }
+
+  @override
+  Future<void> createFundacionProfile(String userId, Map<String, dynamic> data) async {
+    try {
+      LoggerService.auth('Creando perfil fundación desde Google', data: {
+        'userId': userId,
+        'nombre': data['nombre'],
+      });
+
+      await supabaseClient.from('fundaciones').insert({
+        'id': userId,
+        'nombre': data['nombre'],
+        'direccion': data['direccion'] ?? '',
+        'logo_url': data['logo_url'],
+        // 'telefono': ... (Opcional si lo pides)
+      });
+
+      LoggerService.success('Perfil fundación creado', context: 'createFundacionProfile');
+    } catch (e) {
+      LoggerService.error('Error creando perfil fundación', context: 'createFundacionProfile', error: e);
+      print("Error detallado al crear fundación: $e");
+      throw Exception('Error creando perfil fundación: $e');
+    }
   }
 
   // ---------------------------------------------------------------------------
