@@ -138,6 +138,13 @@ class _EditPerfilAdopterScreenState extends State<EditPerfilAdopterScreen> {
                   label: "Celular / Teléfono",
                   icon: Icons.phone_android_rounded,
                   keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return "El teléfono es requerido";
+                    if (v.length != 10) return "El teléfono debe tener exactamente 10 dígitos";
+                    if (!RegExp(r'^\d+$').hasMatch(v)) return "El teléfono solo debe contener números";
+                    return null;
+                  },
                 ),
 
                 const SizedBox(height: 40),
@@ -218,15 +225,21 @@ class _EditPerfilAdopterScreenState extends State<EditPerfilAdopterScreen> {
     return Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary));
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, TextInputType? keyboardType, String? Function(String?)? validator}) {
+  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, TextInputType? keyboardType, String? Function(String?)? validator, int? maxLength}) {
     return TextFormField(
-      controller: controller, keyboardType: keyboardType, validator: validator,
+      controller: controller, 
+      keyboardType: keyboardType, 
+      validator: validator,
+      maxLength: maxLength,
       decoration: InputDecoration(
-        labelText: label, prefixIcon: Icon(icon, color: AppTheme.primaryOrange),
-        filled: true, fillColor: Colors.white,
+        labelText: label, 
+        prefixIcon: Icon(icon, color: AppTheme.primaryOrange),
+        filled: true, 
+        fillColor: Colors.white,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.primaryOrange, width: 2)),
+        counterText: '', // Ocultar el contador de caracteres
       ),
     );
   }

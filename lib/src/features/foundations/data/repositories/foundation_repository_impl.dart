@@ -25,8 +25,12 @@ class FoundationRepositoryImpl {
       if (foundation.newLogoFile != null) {
         final fileExt = path.extension(foundation.newLogoFile!.path);
         final fileName = '${foundation.id}/logo_${DateTime.now().millisecondsSinceEpoch}$fileExt';
-        
-        await client.storage.from('avatars').upload(fileName, foundation.newLogoFile!);
+
+        await client.storage.from('avatars').upload(
+              fileName,
+              foundation.newLogoFile!,
+              fileOptions: const FileOptions(upsert: true),
+            );
         logoUrl = client.storage.from('avatars').getPublicUrl(fileName);
       }
 
@@ -43,7 +47,7 @@ class FoundationRepositoryImpl {
 
       await client.from('fundaciones').update(data).eq('id', foundation.id);
     } catch (e) {
-      throw Exception('Error actualizando perfil: $e');
+      throw Exception('No se pudo actualizar el perfil: $e');
     }
   }
 }

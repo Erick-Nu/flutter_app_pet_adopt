@@ -103,6 +103,7 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
     String? Function(String?)? validator,
     TextCapitalization capitalization = TextCapitalization.none,
     TextInputAction action = TextInputAction.next,
+    int? maxLength,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -112,11 +113,13 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
         obscureText: obscureText,
         textCapitalization: capitalization,
         textInputAction: action,
+        maxLength: maxLength,
         style: AppTheme.lightTheme.textTheme.bodyLarge,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: AppTheme.primaryOrange),
           suffixIcon: suffixIcon,
+          counterText: '', // Ocultar el contador de caracteres
         ),
         validator: validator,
       ),
@@ -207,7 +210,13 @@ class _RegisterFundacionScreenState extends State<RegisterFundacionScreen> {
                       label: 'Teléfono de Contacto',
                       icon: Icons.phone_rounded,
                       type: TextInputType.phone,
-                      validator: (v) => (v == null || v.isEmpty) ? 'El teléfono es requerido' : null,
+                      maxLength: 10,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'El teléfono es requerido';
+                        if (v.length != 10) return 'El teléfono debe tener exactamente 10 dígitos';
+                        if (!RegExp(r'^\d+$').hasMatch(v)) return 'El teléfono solo debe contener números';
+                        return null;
+                      },
                     ),
 
                     if (!widget.isGoogleAuth)

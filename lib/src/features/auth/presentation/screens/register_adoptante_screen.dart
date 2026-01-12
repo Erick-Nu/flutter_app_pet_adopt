@@ -114,6 +114,7 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
     String? Function(String?)? validator,
     TextCapitalization capitalization = TextCapitalization.none,
     TextInputAction action = TextInputAction.next,
+    int? maxLength,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -123,12 +124,14 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
         obscureText: obscureText,
         textCapitalization: capitalization,
         textInputAction: action,
+        maxLength: maxLength,
         style: AppTheme.lightTheme.textTheme.bodyLarge, // Texto del input
         // La decoración base viene del AppTheme, aquí solo agregamos lo específico
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: AppTheme.primaryOrange), // Icono con color de marca
           suffixIcon: suffixIcon,
+          counterText: '', // Ocultar el contador de caracteres
         ),
         validator: validator,
       ),
@@ -220,7 +223,13 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
                       label: 'Cédula / ID',
                       icon: Icons.badge_outlined, // Badge no tiene rounded en versions viejas, pero si existe usalo
                       type: TextInputType.number,
-                      validator: (v) => (v == null || v.length < 10) ? 'Cédula inválida' : null,
+                      maxLength: 11,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'La cédula es requerida';
+                        if (v.length != 11) return 'La cédula debe tener exactamente 11 dígitos';
+                        if (!RegExp(r'^\d+$').hasMatch(v)) return 'La cédula solo debe contener números';
+                        return null;
+                      },
                     ),
 
                     _buildTextField(
@@ -228,7 +237,13 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
                       label: 'Celular',
                       icon: Icons.phone_android_rounded,
                       type: TextInputType.phone,
-                      validator: (v) => (v == null || v.isEmpty) ? 'El teléfono es requerido' : null,
+                      maxLength: 10,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'El teléfono es requerido';
+                        if (v.length != 10) return 'El celular debe tener exactamente 10 dígitos';
+                        if (!RegExp(r'^\d+$').hasMatch(v)) return 'El celular solo debe contener números';
+                        return null;
+                      },
                     ),
 
                     if (!widget.isGoogleAuth)

@@ -56,27 +56,22 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         password: password,
       );
 
-      if (response.user == null) {
+      final user = response.user;
+
+      if (user == null) {
         throw const AuthException('No se pudo obtener el usuario.');
       }
 
-      final userId = response.user!.id;
-      String? userType;
-      
-      // Consultamos el rol
-      final adoptanteResponse = await supabaseClient.from('adoptantes').select('id').eq('id', userId).maybeSingle();
-      if (adoptanteResponse != null) {
-        userType = 'adoptante';
-      } else {
-        final fundacionResponse = await supabaseClient.from('fundaciones').select('id').eq('id', userId).maybeSingle();
-        if (fundacionResponse != null) userType = 'fundacion';
+      final userWithRole = await _buildUserFromSessionUser(
+        user,
+        ensureProfile: true,
+      );
+
+      if (userWithRole == null) {
+        throw const AuthException('No se pudo resolver el perfil del usuario.');
       }
 
-      return UserModel(
-        id: response.user!.id,
-        email: response.user!.email ?? '',
-        type: userType,
-      );
+      return userWithRole;
       
     } on AuthException catch (e) {
       if (e.message.contains('Email not confirmed')) throw Exception('Debes confirmar tu correo antes de iniciar sesión.');
@@ -99,10 +94,19 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       LoggerService.section('REGISTRO ADOPTANTE');
       LoggerService.auth('Iniciando registro...', data: {'email': email, 'cedula': cedula});
       
-      // 1. VALIDACIÓN PREVIA: Email y Cédula (comentado temporalmente si RPC no existe)
-      // await _validateAdoptanteRegistration(email, cedula);
+      // 1. VALIDACIÓN PREVIA: Verificar si el email ya está registrado
+      final emailExists = await _checkEmailExists(email);
+      if (emailExists) {
+        throw Exception('Este correo electrónico ya está registrado.');
+      }
+
+      // 2. VALIDACIÓN PREVIA: Verificar si la cédula ya está registrada
+      final cedulaExists = await _checkCedulaExists(cedula);
+      if (cedulaExists) {
+        throw Exception('Este número de cédula ya está registrado.');
+      }
       
-      // 2. URL de la API
+      // 3. URL de la API
       final url = Uri.parse('$_supabaseUrl/auth/v1/signup?redirect_to=$_redirectUrl/confirm-email');
       
       final headers = {
@@ -163,8 +167,11 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       LoggerService.section('REGISTRO FUNDACIÓN');
       LoggerService.auth('Iniciando registro...', data: {'email': email});
 
-      // 1. VALIDACIÓN PREVIA: Email (comentado temporalmente si RPC no existe)
-      // await _validateFundacionRegistration(email);
+      // 1. VALIDACIÓN PREVIA: Verificar si el email ya está registrado
+      final emailExists = await _checkEmailExists(email);
+      if (emailExists) {
+        throw Exception('Este correo electrónico ya está registrado.');
+      }
 
       // 2. URL de la API
       final url = Uri.parse('$_supabaseUrl/auth/v1/signup?redirect_to=$_redirectUrl/confirm-email');
@@ -262,44 +269,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       final session = supabaseClient.auth.currentSession;
       if (session == null) return null;
-
-      final userId = session.user.id;
-      final email = session.user.email ?? '';
-
-      // 1. Verificar si es Fundación
-      final foundationData = await supabaseClient
-          .from('fundaciones')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (foundationData != null) {
-        return UserModel(
-          id: userId,
-          email: email,
-          type: 'fundacion',
-        );
-      }
-
-      // 2. Verificar si es Adoptante
-      final adopterData = await supabaseClient
-          .from('adoptantes')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (adopterData != null) {
-        return UserModel(
-          id: userId,
-          email: email,
-          type: 'adoptante',
-        );
-      }
-
-      // 3. Si no está en ninguna tabla, retornamos usuario con tipo 'unknown'
-      LoggerService.warning('Usuario sin tipo definido: $userId', context: 'getCurrentUser');
-      return UserModel(id: userId, email: email, type: 'unknown');
-      
+      return await _buildUserFromSessionUser(
+        session.user,
+        ensureProfile: true,
+      );
     } catch (e) {
       LoggerService.error('Error al obtener usuario actual', context: 'getCurrentUser', error: e);
       return null;
@@ -309,22 +282,63 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Stream<UserModel?> get authStateChanges {
     return supabaseClient.auth.onAuthStateChange.asyncMap((data) async {
-      final user = data.session?.user;
-      if (user == null) return null;
-      return await _getUserWithRole(user.id, user.email ?? '');
+      return await _buildUserFromSessionUser(
+        data.session?.user,
+        ensureProfile: true,
+      );
     });
   }
 
-  Future<UserModel> _getUserWithRole(String userId, String email) async {
-    String? userType;
-    final adoptante = await supabaseClient.from('adoptantes').select('id').eq('id', userId).maybeSingle();
-    if (adoptante != null) {
-      userType = 'adoptante';
-    } else {
-      final fundacion = await supabaseClient.from('fundaciones').select('id').eq('id', userId).maybeSingle();
-      if (fundacion != null) userType = 'fundacion';
+  Future<UserModel?> _buildUserFromSessionUser(
+    User? user, {
+    bool ensureProfile = false,
+  }) async {
+    if (user == null) return null;
+
+    final metadata = user.userMetadata ?? <String, dynamic>{};
+    final metadataType = metadata['type'] as String?;
+
+    final adoptanteRecord = await supabaseClient
+        .from('adoptantes')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    Map<String, dynamic>? fundacionRecord;
+
+    if (adoptanteRecord == null) {
+      fundacionRecord = await supabaseClient
+          .from('fundaciones')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
     }
-    return UserModel(id: userId, email: email, type: userType);
+
+    String? resolvedType;
+
+    if (adoptanteRecord != null) {
+      resolvedType = 'adoptante';
+    } else if (fundacionRecord != null) {
+      resolvedType = 'fundacion';
+    } else {
+      resolvedType = metadataType;
+    }
+
+    if (ensureProfile && resolvedType != null) {
+      await _ensureProfileExists(
+        userId: user.id,
+        type: resolvedType,
+        metadata: metadata,
+        hasAdoptanteRecord: adoptanteRecord != null,
+        hasFundacionRecord: fundacionRecord != null,
+      );
+    }
+
+    return UserModel(
+      id: user.id,
+      email: user.email ?? '',
+      type: resolvedType,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -411,16 +425,122 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   void _handleRegistrationErrors(dynamic e) {
     final msg = e.toString();
-    if (msg.contains('cedula') || msg.contains('adoptantes_cedula_key') || msg.contains('Este número de cédula')) {
-      throw Exception('Este número de cédula ya está registrado.');
+    
+    // Errores de cédula duplicada
+    if (msg.contains('Este número de cédula ya está registrado')) {
+      throw Exception('Este número de cédula ya está registrado. Por favor, utiliza otro.');
     }
-    if (msg.contains('User already registered') || msg.contains('already registered') || msg.contains('Este correo electrónico')) {
-      throw Exception('Este correo electrónico ya está registrado.');
+    if (msg.contains('cedula') || msg.contains('adoptantes_cedula_key')) {
+      throw Exception('Este número de cédula ya está registrado. Por favor, utiliza otro.');
     }
+    
+    // Errores de email duplicado
+    if (msg.contains('Este correo electrónico ya está registrado')) {
+      throw Exception('Este correo electrónico ya está registrado. Por favor, utiliza otro o intenta recuperar tu contraseña.');
+    }
+    if (msg.contains('User already registered') || msg.contains('already registered')) {
+      throw Exception('Este correo electrónico ya está registrado. Por favor, utiliza otro o intenta recuperar tu contraseña.');
+    }
+    
+    // Errores de contraseña débil
     if (msg.contains('Password should be')) {
-      // Supabase mensaje de contraseña débil
       throw Exception('La contraseña debe tener al menos 8 caracteres.');
     }
+    
     throw Exception(msg.replaceAll('Exception:', '').trim());
+  }
+
+  Future<void> _ensureProfileExists({
+    required String userId,
+    required String type,
+    required Map<String, dynamic> metadata,
+    required bool hasAdoptanteRecord,
+    required bool hasFundacionRecord,
+  }) async {
+    try {
+      if (type == 'adoptante') {
+        if (hasAdoptanteRecord) return;
+        await supabaseClient.from('adoptantes').insert({
+          'id': userId,
+          'nombre': metadata['nombre'] ?? metadata['full_name'] ?? metadata['name'] ?? 'Adoptante',
+          'telefono': metadata['telefono'],
+          'cedula': metadata['cedula'],
+          'sexo': metadata['sexo'] ?? 'hombre',
+          'edad': metadata['edad'] ?? 18,
+          'avatar_url': metadata['avatar_url'],
+        });
+        return;
+      }
+
+      if (type == 'fundacion') {
+        if (hasFundacionRecord) return;
+        await supabaseClient.from('fundaciones').insert({
+          'id': userId,
+          'nombre': metadata['nombre'] ?? 'Fundación',
+          'telefono': metadata['telefono'],
+          'direccion': metadata['direccion'] ?? '',
+          'logo_url': metadata['logo_url'],
+        });
+      }
+    } catch (e) {
+      LoggerService.error(
+        'No se pudo crear el perfil automáticamente',
+        context: '_ensureProfileExists',
+        error: e,
+      );
+      throw Exception('No se pudo preparar tu perfil. Intenta nuevamente.');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // VALIDACIONES DE DUPLICADOS
+  // ---------------------------------------------------------------------------
+
+  /// Verifica si un email ya existe en la tabla de usuarios (auth.users)
+  Future<bool> _checkEmailExists(String email) async {
+    try {
+      LoggerService.auth('Verificando si el email existe', data: {'email': email});
+      
+      // Intentamos obtener el usuario por email usando el API de Supabase
+      // No podemos consultarlo directamente desde auth.users, pero podemos intentar
+      // verificar en las tablas de adoptantes y fundaciones
+      
+      final adoptantesWithEmail = await supabaseClient
+          .from('adoptantes')
+          .select('id')
+          .eq('id', email)  // Comparar con el ID del usuario (que es el email en auth)
+          .maybeSingle();
+
+      final fundacionesWithEmail = await supabaseClient
+          .from('fundaciones')
+          .select('id')
+          .eq('id', email)  // Comparar con el ID del usuario (que es el email en auth)
+          .maybeSingle();
+
+      return adoptantesWithEmail != null || fundacionesWithEmail != null;
+    } catch (e) {
+      // Si hay error en la búsqueda, continuamos (mejor dejar registrarse que bloquear)
+      LoggerService.info('No se pudo verificar email duplicado: $e', context: '_checkEmailExists');
+      return false;
+    }
+  }
+
+  /// Verifica si una cédula ya existe en la tabla de adoptantes
+  Future<bool> _checkCedulaExists(String cedula) async {
+    try {
+      LoggerService.auth('Verificando si la cédula existe', data: {'cedula': cedula});
+      
+      final adoptanteWithCedula = await supabaseClient
+          .from('adoptantes')
+          .select('id')
+          .eq('cedula', cedula)
+          .maybeSingle();
+
+      return adoptanteWithCedula != null;
+    } catch (e) {
+      // Si hay error en la búsqueda, continuamos
+      LoggerService.info('No se pudo verificar cédula duplicada: $e', context: '_checkCedulaExists');
+      return false;
+    }
   }
 }

@@ -207,7 +207,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // 9. Logout
     on<AuthLogoutRequested>((event, emit) async {
       try {
-        emit(AuthLoading());
         await Supabase.instance.client.auth.signOut();
         LoggerService.info('Sesión cerrada exitosamente', context: 'AuthLogoutRequested');
         emit(AuthUnauthenticated());
@@ -226,7 +225,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         add(AuthCheckStatus());
       } else if (event.event == AuthChangeEvent.signedOut) {
         LoggerService.auth('Auth cambió a SignedOut', data: {});
-        emit(AuthUnauthenticated());
+        // No se puede usar emit() fuera de un handler, así que manejamos esto
+        // directamente en el handler de AuthLogoutRequested
       }
     });
   }

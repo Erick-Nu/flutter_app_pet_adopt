@@ -66,6 +66,11 @@ class PetRemoteDataSource {
     try {
       dev.log('[PetRemoteDataSource] Iniciando creación completa de mascota: ${pet.nombre}');
 
+      final currentUser = supabaseClient.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
+      }
+
       // Convertir PetEntity -> PetModel para aprovechar toJson (incluye raza/especie/tamaño)
       final petModel = PetModel(
         id: pet.id,
@@ -139,11 +144,20 @@ class PetRemoteDataSource {
     try {
       final fileExt = path.extension(file.path);
       final fileName = '${DateTime.now().toIso8601String()}$fileExt';
-      final userId = supabaseClient.auth.currentUser!.id;
+      final currentUser = supabaseClient.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
+      }
+
+      final userId = currentUser.id;
       final fullPath = '$userId/$folder/$fileName';
 
       dev.log('[PetRemoteDataSource] Subiendo imagen a: $fullPath');
-      await supabaseClient.storage.from('pets').upload(fullPath, file);
+      await supabaseClient.storage.from('pets').upload(
+            fullPath,
+            file,
+            fileOptions: const FileOptions(upsert: true),
+          );
       final publicUrl = supabaseClient.storage.from('pets').getPublicUrl(fullPath);
       dev.log('[PetRemoteDataSource] Imagen subida exitosamente: $publicUrl');
       return publicUrl;
@@ -157,6 +171,10 @@ class PetRemoteDataSource {
   Future<void> updatePetFull(PetEntity pet) async {
     try {
       dev.log('[PetRemoteDataSource] Iniciando actualización completa de mascota: ${pet.id} - ${pet.nombre}');
+      final currentUser = supabaseClient.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
+      }
       
       // 1. GESTIÓN DE AVATAR
       String? avatarPathUrl = pet.avatarUrl; // Por defecto mantenemos el anterior
@@ -225,7 +243,8 @@ class PetRemoteDataSource {
       dev.log('[PetRemoteDataSource] Actualización completa finalizada exitosamente');
     } catch (e) {
       dev.log('[PetRemoteDataSource] Error actualizando mascota completa', error: e);
-      throw Exception('Error actualizando mascota: $e');
+      // Mensaje amigable para la UI
+      throw Exception('No se pudo actualizar la mascota. Detalle: $e');
     }
   }
 

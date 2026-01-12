@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../adoptions/presentation/screens/home_adopter_screen.dart';
+import '../../../foundations/presentation/screens/home_foundation_screen.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
-import 'register_selector_screen.dart';
 import 'forgot_password_screen.dart';
+import 'register_selector_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -47,14 +49,50 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
+          if (!mounted) return;
+
           if (state is AuthError) {
             showAppSnackBar(
               context,
               message: state.message,
               type: AppSnackBarType.error,
             );
+          } else if (state is AuthenticatedNoProfile) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RegisterSelectorScreen(
+                  isGoogleAuth: false,
+                  googleUser: state.user,
+                ),
+              ),
+            );
           } else if (state is AuthAuthenticated) {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            final type = state.user.type;
+            if (type == 'fundacion') {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeFoundationScreen()),
+                (route) => false,
+              );
+            } else if (type == 'adoptante') {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeAdopterScreen()),
+                (route) => false,
+              );
+            } else {
+              // Tipo indefinido: enviamos al selector para completar perfil
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RegisterSelectorScreen(
+                    isGoogleAuth: false,
+                    googleUser: state.user,
+                  ),
+                ),
+              );
+            }
           }
         },
         child: BlocBuilder<AuthBloc, AuthState>(
