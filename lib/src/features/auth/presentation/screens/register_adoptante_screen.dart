@@ -83,7 +83,8 @@ class _RegisterAdoptanteScreenState extends State<RegisterAdoptanteScreen> {
         context.read<AuthBloc>().add(
           CreateGoogleProfileAdoptante({
             'nombre': _nombreCtrl.text.trim(),
-            'ubicacion': _telefonoCtrl.text.trim(),
+            'telefono': _telefonoCtrl.text.trim(),
+            'cedula': _cedulaCtrl.text.trim(),
             'avatar_url': _avatarUrl,
           }),
         );

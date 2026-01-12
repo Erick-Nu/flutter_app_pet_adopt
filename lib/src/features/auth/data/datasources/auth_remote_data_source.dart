@@ -361,12 +361,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       // CORRECCIÓN: 
       // 1. No enviamos 'email' porque no existe en la tabla 'adoptantes'.
-      // 2. No enviamos 'cedula' porque ahora es opcional (NULL).
+      // 2. Guardamos 'cedula' si el usuario la proporciona (es opcional).
       // 3. No enviamos 'ubicacion' porque no existe en la tabla SQL.
       await supabaseClient.from('adoptantes').insert({
         'id': userId,
         'nombre': data['nombre'],
         'avatar_url': data['avatar_url'],
+        'telefono': data['telefono'], // Teléfono del usuario
+        'cedula': data['cedula'], // Cédula del usuario (si la proporciona)
         'sexo': 'hombre', // Valor por defecto (user_sex_enum)
         'edad': 18, // Valor por defecto
       });

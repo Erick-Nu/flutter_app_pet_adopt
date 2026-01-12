@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/widgets/location_requirement_dialog.dart';
 import '../../../pets/presentation/bloc/pet_bloc.dart';
 import '../../../pets/presentation/bloc/pet_event.dart';
@@ -28,6 +29,7 @@ class HomeFoundationScreen extends StatefulWidget {
 class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
   int _currentIndex = 0;
   bool _hasShownLocationWarning = false;
+  RealtimeChannel? _adoptionChannel; // Canal de Supabase para escuchar cambios
 
   final List<Widget> _tabs = [
     const TabInicio(),
@@ -35,6 +37,66 @@ class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
     const TabSolicitudesFoundation(),
     const TabPerfilFundacion(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _setupRealtimeListener();
+  }
+
+  void _setupRealtimeListener() {
+    final myId = Supabase.instance.client.auth.currentUser?.id;
+    if (myId == null) {
+      print("❌ No hay usuario autenticado para escuchar solicitudes");
+      return;
+    }
+
+    print("🟢 Iniciando escucha de solicitudes para Fundación: $myId");
+
+    try {
+      // Configurar el canal de Supabase para escuchar cambios en tiempo real
+      _adoptionChannel = Supabase.instance.client
+          .channel('public:adopciones:foundation_$myId') // Nombre único del canal
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert, // Escuchar solo NUEVOS registros (INSERT)
+            schema: 'public',
+            table: 'adopciones',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'fundacion_id',
+              value: myId, // ¡Clave! Solo notificar si es para MÍ
+            ),
+            callback: (payload) {
+              print("🔔 ¡Nueva solicitud recibida en tiempo real!");
+              print("Payload: ${payload.newRecord}");
+
+              // Mostrar la notificación en el dispositivo
+              NotificationService().showNotification(
+                '¡Nueva Solicitud de Adopción!',
+                'Alguien quiere adoptar una de tus mascotas. Revisa la app.',
+              );
+
+              // Opcional: Aquí podrías disparar un evento a tu BLoC para recargar la lista automáticamente
+              // context.read<FoundationProfileBloc>().add(LoadProfile(myId));
+            },
+          )
+          .subscribe();
+
+      print("✅ Canal de escucha configurado exitosamente");
+    } catch (e) {
+      print("❌ Error configurando listener: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    // IMPORTANTE: Cancelar la suscripción al salir para ahorrar recursos
+    if (_adoptionChannel != null) {
+      Supabase.instance.client.removeChannel(_adoptionChannel!);
+      print("🛑 Canal de escucha cancelado");
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

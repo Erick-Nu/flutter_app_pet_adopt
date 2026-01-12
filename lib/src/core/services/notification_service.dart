@@ -36,7 +36,19 @@ class NotificationService {
         NotificationDetails(android: androidPlatformChannelSpecifics);
     
     await flutterLocalNotificationsPlugin.show(
-      0, title, body, platformChannelSpecifics,
+      DateTime.now().millisecond, // ID único basado en timestamp
+      title, 
+      body, 
+      platformChannelSpecifics,
     );
+  }
+
+  // Método alternativo que acepta Named parameters
+  static Future<void> showSimpleNotification({
+    required String title,
+    required String body,
+  }) async {
+    final instance = NotificationService();
+    await instance.showNotification(title, body);
   }
 }
