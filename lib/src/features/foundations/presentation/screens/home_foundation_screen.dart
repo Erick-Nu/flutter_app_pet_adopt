@@ -51,33 +51,40 @@ class _HomeFoundationScreenState extends State<HomeFoundationScreen> {
       return;
     }
 
-    print("🟢 Iniciando escucha de solicitudes para Fundación: $myId");
+    print("🟢 Iniciando escucha (Fundación) para ID: $myId");
 
     try {
+      // Cancelar suscripción previa si existe
+      if (_adoptionChannel != null) {
+        Supabase.instance.client.removeChannel(_adoptionChannel!);
+      }
+
       // Configurar el canal de Supabase para escuchar cambios en tiempo real
       _adoptionChannel = Supabase.instance.client
-          .channel('public:adopciones:foundation_$myId') // Nombre único del canal
+          .channel('foundation_alerts') // Nombre del canal
           .onPostgresChanges(
-            event: PostgresChangeEvent.insert, // Escuchar solo NUEVOS registros (INSERT)
+            event: PostgresChangeEvent.insert, // Escuchamos CREACIONES
             schema: 'public',
             table: 'adopciones',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'fundacion_id',
-              value: myId, // ¡Clave! Solo notificar si es para MÍ
-            ),
+            // OJO: Quitamos el 'filter' aquí para asegurar que llega el evento,
+            // y lo filtramos adentro con el 'if'. Es más seguro.
             callback: (payload) {
-              print("🔔 ¡Nueva solicitud recibida en tiempo real!");
-              print("Payload: ${payload.newRecord}");
+              final newRecord = payload.newRecord;
+              print("🔔 Evento recibido en adopciones: $newRecord");
 
-              // Mostrar la notificación en el dispositivo
-              NotificationService().showNotification(
-                '¡Nueva Solicitud de Adopción!',
-                'Alguien quiere adoptar una de tus mascotas. Revisa la app.',
-              );
+              // Filtramos manualmente: ¿Es para mí?
+              if (newRecord['fundacion_id'] == myId) {
+                print("✅ La solicitud es para esta fundación");
+                
+                // Mostrar la notificación en el dispositivo
+                NotificationService().showNotification(
+                  '¡Nueva Solicitud!',
+                  'Alguien quiere adoptar una mascota. Toca para ver.',
+                );
 
-              // Opcional: Aquí podrías disparar un evento a tu BLoC para recargar la lista automáticamente
-              // context.read<FoundationProfileBloc>().add(LoadProfile(myId));
+                // Opcional: Recargar la lista visualmente
+                // context.read<AdoptionBloc>().add(LoadFoundationRequests(myId));
+              }
             },
           )
           .subscribe();

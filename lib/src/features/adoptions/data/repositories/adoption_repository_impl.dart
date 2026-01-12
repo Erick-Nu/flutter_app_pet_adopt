@@ -9,21 +9,34 @@ class AdoptionRepositoryImpl implements AdoptionRepository {
   AdoptionRepositoryImpl(this.supabase);
 
   @override
-  Future<void> createRequest({required String petId, required String foundationId, required String adopterId}) async {
-    final existing = await supabase.from('adopciones')
-        .select()
-        .eq('mascota_id', petId)
-        .eq('adoptante_id', adopterId)
-        .maybeSingle();
-
-    if (existing != null) throw Exception('Ya has enviado una solicitud para esta mascota.');
-
-    await supabase.from('adopciones').insert({
-      'mascota_id': petId,
-      'fundacion_id': foundationId,
-      'adoptante_id': adopterId,
-      'estado_tramite': 'pendiente',
-    });
+  Future<void> createRequest({
+    required String petId,
+    required String foundationId,
+    required String adopterId,
+  }) async {
+    try {
+      // Intentamos insertar directamente.
+      // Si la mascota ya tiene solicitud (de CUALQUIER persona), la base de datos lanzará un error.
+      await supabase.from('adopciones').insert({
+        'mascota_id': petId,
+        'fundacion_id': foundationId,
+        'adoptante_id': adopterId,
+        'estado_tramite': 'pendiente',
+      });
+    } on PostgrestException catch (e) {
+      // CÓDIGO 23505 = Unique Constraint Violation (Ya existe registro)
+      if (e.code == '23505') {
+        // Aquí mostramos el mensaje que pediste, sin importar quién tenga la solicitud
+        throw Exception('Mascota en proceso de adopción');
+      }
+      
+      // Si es otro error de base de datos, lo mostramos normal
+      throw Exception('Error de base de datos: ${e.message}');
+      
+    } catch (e) {
+      // Cualquier otro error no controlado
+      throw Exception('Error al enviar solicitud: $e');
+    }
   }
 
   @override
